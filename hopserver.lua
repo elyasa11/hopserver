@@ -1,51 +1,52 @@
 --[[
-    SCRIPT PENGECEK STATUS HOP SERVER
-    Dibuat untuk: Delta Executor
+    SIMPLE & ROBUST SERVER HOP V2
+    Dibuat untuk mengatasi "Hop Gagal/Rejoin Same Server"
 ]]
 
-local filename = "last_server_check.txt" -- Nama file untuk menyimpan data
-local currentJobId = game.JobId
-local StarterGui = game:GetService("StarterGui")
+local PlaceID = game.PlaceId
+local Http = game:GetService("HttpService")
+local TPS = game:GetService("TeleportService")
+local Players = game:GetService("Players")
 
-print("--- SYSTEM CHECK: SERVER HOP ---")
+local function ServerHop()
+    print("Mencoba mencari server baru...")
+    
+    -- 1. Ambil daftar server dari API Roblox
+    local success, result = pcall(function()
+        -- Mengambil server dengan urutan Ascending (dari yang sepi ke ramai) agar lebih mudah masuk
+        return Http:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100"))
+    end)
 
--- 1. Cek apakah file catatan sudah ada
-if isfile(filename) then
-    local lastJobId = readfile(filename)
-
-    if lastJobId == currentJobId then
-        -- KONDISI: ID SAMA (GAGAL HOP)
-        warn("STATUS: HOP GAGAL / Rejoined Same Server")
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "Hop Server Status",
-            Text = "⚠️ GAGAL! Masih di server yang sama.",
-            Duration = 5
-        })
-        
-        -- Opsional: Paksa hop lagi jika gagal (hapus tanda komen di bawah jika mau)
-        -- task.wait(2)
-        -- game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
-        
-    else
-        -- KONDISI: ID BEDA (BERHASIL HOP)
-        print("STATUS: HOP SUKSES")
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "Hop Server Status",
-            Text = "✅ BERHASIL! Ini server baru.",
-            Duration = 5
-        })
+    if not success or not result or not result.data then
+        warn("Gagal mengambil daftar server! Mencoba lagi nanti...")
+        return
     end
-else
-    -- KONDISI: BARU PERTAMA KALI JALAN
-    print("STATUS: Script baru dijalankan pertama kali.")
-    StarterGui:SetCore("SendNotification", {
-        Title = "Hop Server Status",
-        Text = "ℹ️ Script dimulai. Data server disimpan.",
-        Duration = 5
-    })
+
+    -- 2. Filter Server
+    local Servers = {}
+    for _, server in pairs(result.data) do
+        -- Syarat:
+        -- 1. Server bisa dimainkan (playing < maxPlayers)
+        -- 2. Server bukan server kita saat ini (id ~= game.JobId)
+        if server.playing < server.maxPlayers and server.id ~= game.JobId then
+            table.insert(Servers, server.id)
+        end
+    end
+
+    -- 3. Eksekusi Pindah
+    if #Servers > 0 then
+        -- Pilih satu server secara acak dari daftar yang valid
+        local randomServerId = Servers[math.random(1, #Servers)]
+        print("Menemukan " .. #Servers .. " server valid. Pindah ke ID: " .. randomServerId)
+        
+        TPS:TeleportToPlaceInstance(PlaceID, randomServerId, Players.LocalPlayer)
+    else
+        warn("Tidak ditemukan server lain yang valid (Mungkin game sepi/cuma 1 server).")
+        
+        -- Opsi Darurat: Coba teleport biasa (Rejoin) berharap Roblox melempar ke server baru
+        -- TPS:Teleport(PlaceID, Players.LocalPlayer) 
+    end
 end
 
--- 2. Simpan ID server sekarang ke file untuk pengecekan nanti
-writefile(filename, currentJobId)
+-- Jalankan Fungsi
+ServerHop()
