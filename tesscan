@@ -3,7 +3,7 @@
     Tujuan: Mengetahui struktur path yang benar & Masalah Loading
 ]]
 
-local targetName = "Shinobu" -- Ganti nama ini jika mau test NPC lain
+local targetName = "Kokushibo" -- Ganti nama ini jika mau test NPC lain
 local folderName = "CharactersAndNPC"
 
 print("\n\n========== MULAI DIAGNOSA ==========")
