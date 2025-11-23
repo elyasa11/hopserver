@@ -1,60 +1,79 @@
 --[[
-    SCRIPT TESTER / DEBUGGER PENCARI NPC
-    Tujuan: Mengetahui struktur path yang benar & Masalah Loading
+    DIAGNOSA DETIL KOKUSHIBO
+    Tujuan: Mengecek apakah monster itu hidup, mati, atau cuma pajangan.
 ]]
 
-local targetName = "Kokushibo" -- Ganti nama ini jika mau test NPC lain
-local folderName = "CharactersAndNPC"
-
-print("\n\n========== MULAI DIAGNOSA ==========")
-print("Target Pencarian: " .. targetName)
-
+local monsterName = "Kokushibo" 
+local folderName = "CharactersAndNPCs"
 local Workspace = game:GetService("Workspace")
 
--- 1. CEK APAKAH FOLDERNYA ADA?
-print("1. Mengecek Folder '" .. folderName .. "' di Workspace...")
-local targetFolder = Workspace:FindFirstChild(folderName)
+print("\n\n========================================")
+print("     MULAI CHECKUP KONDISI BOSS     ")
+print("========================================")
 
-if targetFolder then
-    print("   [OK] Folder '" .. folderName .. "' DITEMUKAN.")
+-- 1. CEK FOLDER
+local folder = Workspace:FindFirstChild(folderName)
+if not folder then
+    warn("❌ [FATAL] Folder '" .. folderName .. "' TIDAK DITEMUKAN!")
+    return -- Stop script
+else
+    print("✅ Folder '" .. folderName .. "' ditemukan.")
+end
+
+-- 2. CEK MODEL
+local monster = folder:FindFirstChild(monsterName)
+if not monster then
+    warn("❌ [FATAL] Model '" .. monsterName .. "' TIDAK ADA di dalam folder.")
+    return -- Stop script
+else
+    print("✅ Model '" .. monsterName .. "' ditemukan.")
+end
+
+-- 3. CEK KOMPONEN KEHIDUPAN (HUMANOID)
+local humanoid = monster:FindFirstChild("Humanoid")
+if humanoid then
+    print("   [INFO] Humanoid ditemukan.")
+    print("   ❤️ Health: " .. humanoid.Health .. " / " .. humanoid.MaxHealth)
     
-    -- 2. JIKA FOLDER ADA, CEK ISINYA
-    print("2. Mengecek isi folder tersebut...")
-    local targetMob = targetFolder:FindFirstChild(targetName)
-    
-    if targetMob then
-        print("   [SUKSES] Target '" .. targetName .. "' DITEMUKAN di dalam folder!")
-        print("   PATH LENGKAP: " .. targetMob:GetFullName())
+    if humanoid.Health <= 0 then
+        warn("   ⚠️ STATUS: MATI (Health 0 atau kurang).")
     else
-        print("   [GAGAL] Folder ada, tapi '" .. targetName .. "' TIDAK ADA di dalamnya.")
-        print("   --- Daftar isi folder '" .. folderName .. "' saat ini: ---")
-        for i, v in pairs(targetFolder:GetChildren()) do
-            print("   - " .. v.Name)
-        end
-        print("   -------------------------------------------------------")
+        print("   ✅ STATUS: HIDUP (Health > 0).")
     end
 else
-    print("   [GAGAL] Folder '" .. folderName .. "' TIDAK DITEMUKAN di Workspace.")
-    print("   Mungkin namanya salah atau belum loading.")
+    warn("   ❌ [CRITICAL] Tidak ada 'Humanoid'. Ini cuma model kosong/patung.")
 end
 
--- 3. CARI PAKSA (SCAN SELURUH WORKSPACE)
-print("\n3. Melakukan Deep Scan (Mencari nama '" .. targetName .. "' di SELURUH MAP)...")
--- Kita pakai GetDescendants (Hati-hati ini bisa bikin lag sebentar kalau map besar)
-local foundGlobal = false
-
-for _, object in pairs(Workspace:GetDescendants()) do
-    if object.Name == targetName then
-        print("   [KETEMU!] Ditemukan objek bernama sama di lokasi lain:")
-        print("   LOKASI: " .. object:GetFullName())
-        print("   CLASS: " .. object.ClassName)
-        foundGlobal = true
+-- 4. CEK FISIK (ROOT PART)
+local rootPart = monster:FindFirstChild("HumanoidRootPart")
+if rootPart then
+    print("   [INFO] HumanoidRootPart (Badan Utama) ditemukan.")
+    print("   📍 Posisi: " .. tostring(rootPart.Position))
+    print("   👻 Transparency: " .. rootPart.Transparency)
+    
+    -- Cek apakah dia disembunyikan jauh di bawah map?
+    if rootPart.Position.Y < -50 then
+        warn("   ⚠️ WARNING: Posisi Y negatif (Di bawah map/Void).")
     end
+else
+    warn("   ❌ [CRITICAL] Tidak ada 'HumanoidRootPart'. Monster tidak punya fisik.")
 end
 
-if not foundGlobal then
-    print("   [HASIL SCAN] Tidak ditemukan apapun bernama '" .. targetName .. "' di Workspace.")
-    print("   Kemungkinan: NPC belum spawn, Jarak terlalu jauh (StreamingEnabled), atau nama salah.")
-end
+-- 5. KESIMPULAN SIMULASI
+print("\n----------------------------------------")
+print("     KESIMPULAN UNTUK SCRIPT HOP     ")
+print("----------------------------------------")
 
-print("========== DIAGNOSA SELESAI ==========\n\n")
+local isAlive = (humanoid and humanoid.Health > 0)
+local hasBody = (rootPart ~= nil)
+
+if isAlive and hasBody then
+    print("🟢 HASIL: Script Auto Hop akan BERHENTI (Monster dianggap ADA & SIAP DIBUNUH).")
+elseif not isAlive then
+    print("🔴 HASIL: Script Auto Hop akan PINDAH SERVER (Alasan: Monster Mati/HP 0).")
+elseif not hasBody then
+    print("🔴 HASIL: Script Auto Hop akan PINDAH SERVER (Alasan: Monster tidak punya badan fisik).")
+else
+    print("🔴 HASIL: Script Auto Hop akan PINDAH SERVER (Alasan: Tidak valid).")
+end
+print("========================================\n\n")
