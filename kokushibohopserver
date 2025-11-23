@@ -1,17 +1,14 @@
 --[[
-    AUTO HOP V6: KILL & HOP LOOP
-    Target: Workspace.CharactersAndNPCs.Kokushibo
-    Logic: 
-    1. Cek Boss.
-    2. Jika HIDUP -> Execute Cheat -> Tunggu Mati -> Hop.
-    3. Jika MATI -> Langsung Hop.
+    AUTO HOP V7: PARALLEL EXECUTION FIX
+    Masalah sebelumnya: Script Cheat memblokir Script Hop.
+    Solusi: Menggunakan task.spawn agar Script Hop tetap berjalan memantau Boss.
 ]]
 
 -- === KONFIGURASI ===
 local monsterName = "Kokushibo" 
 local folderName = "CharactersAndNPCs"
-local delayBeforeCheck = 4      -- Waktu loading awal
-local delayAfterKill = 5        -- Waktu tunggu setelah boss mati (untuk ambil loot/drop) sebelum pindah
+local delayBeforeCheck = 4
+local delayAfterKill = 5
 -- ===================
 
 local Players = game:GetService("Players")
@@ -20,7 +17,7 @@ local TPS = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
-print("--- SYSTEM START: KILL & HOP LOOP ---")
+print("--- SYSTEM START: V7 PARALLEL MODE ---")
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -29,7 +26,7 @@ task.wait(delayBeforeCheck)
 
 -- 1. FUNGSI HOP SERVER
 local function ServerHop()
-    print("Mencari server baru...")
+    print("Memicu Server Hop...")
     StarterGui:SetCore("SendNotification", {
         Title = "Auto Hop",
         Text = "Pindah Server...",
@@ -66,7 +63,6 @@ local folder = Workspace:FindFirstChild(folderName)
 local bossFound = false
 local targetHumanoid = nil
 
--- Cek Keberadaan Boss
 if folder then
     local monster = folder:FindFirstChild(monsterName)
     if monster then
@@ -78,38 +74,39 @@ if folder then
     end
 end
 
--- 3. EKSEKUSI SKENARIO
+-- 3. EKSEKUSI PARALEL (PERBAIKAN UTAMA DI SINI)
 if bossFound then
-    -- SKENARIO A: BOSS ADA
-    print("✅ BOSS DITEMUKAN! Execute Script Cheat...")
+    print("✅ BOSS DITEMUKAN! Menjalankan Cheat & Monitor secara bersamaan.")
     StarterGui:SetCore("SendNotification", {
-        Title = "TARGET DITEMUKAN",
-        Text = "Menjalankan Auto Farm & Menunggu Kill...",
+        Title = "TARGET LOCKED",
+        Text = "Cheat jalan, Monitor jalan.",
         Duration = 5
     })
 
-    -- A. Jalankan Script Cheat
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Omgshit/Scripts/main/MainLoader.lua"))()
+    -- >>> TASK.SPAWN: JALANKAN CHEAT DI JALUR TERPISAH <<<
+    task.spawn(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Omgshit/Scripts/main/MainLoader.lua"))()
+    end)
 
-    -- B. LOOP MONITORING (Tunggu sampai boss mati)
-    print("⏳ Menunggu boss mati...")
+    -- >>> SCRIPT HOP TETAP LANJUT KE BAWAH (MONITORING) <<<
+    print("⏳ Monitor aktif: Menunggu boss mati...")
+    
     repeat
-        task.wait(1) -- Cek setiap 1 detik
-    until targetHumanoid.Health <= 0 or not targetHumanoid.Parent
+        task.wait(1)
+        -- Cek apakah humanoid masih ada & darah > 0
+    until not targetHumanoid or not targetHumanoid.Parent or targetHumanoid.Health <= 0
 
-    -- C. Boss Mati -> Hop
-    print("💀 BOSS MATI! Menunggu loot...")
+    print("💀 BOSS MATI! Menghitung mundur untuk Hop...")
     StarterGui:SetCore("SendNotification", {
         Title = "BOSS DEFEATED",
-        Text = "Pindah server dalam " .. delayAfterKill .. " detik...",
+        Text = "Hop Server dalam " .. delayAfterKill .. " detik...",
         Duration = delayAfterKill
     })
     
-    task.wait(delayAfterKill) -- Tunggu sebentar barangkali ada drop item
+    task.wait(delayAfterKill)
     ServerHop()
 
 else
-    -- SKENARIO B: BOSS TIDAK ADA / MATI
     print("❌ Boss tidak ada/mati. Langsung Hop.")
     ServerHop()
 end
