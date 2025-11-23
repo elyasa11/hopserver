@@ -1,0 +1,60 @@
+--[[
+    SCRIPT TESTER / DEBUGGER PENCARI NPC
+    Tujuan: Mengetahui struktur path yang benar & Masalah Loading
+]]
+
+local targetName = "Shinobu" -- Ganti nama ini jika mau test NPC lain
+local folderName = "CharactersAndNPC"
+
+print("\n\n========== MULAI DIAGNOSA ==========")
+print("Target Pencarian: " .. targetName)
+
+local Workspace = game:GetService("Workspace")
+
+-- 1. CEK APAKAH FOLDERNYA ADA?
+print("1. Mengecek Folder '" .. folderName .. "' di Workspace...")
+local targetFolder = Workspace:FindFirstChild(folderName)
+
+if targetFolder then
+    print("   [OK] Folder '" .. folderName .. "' DITEMUKAN.")
+    
+    -- 2. JIKA FOLDER ADA, CEK ISINYA
+    print("2. Mengecek isi folder tersebut...")
+    local targetMob = targetFolder:FindFirstChild(targetName)
+    
+    if targetMob then
+        print("   [SUKSES] Target '" .. targetName .. "' DITEMUKAN di dalam folder!")
+        print("   PATH LENGKAP: " .. targetMob:GetFullName())
+    else
+        print("   [GAGAL] Folder ada, tapi '" .. targetName .. "' TIDAK ADA di dalamnya.")
+        print("   --- Daftar isi folder '" .. folderName .. "' saat ini: ---")
+        for i, v in pairs(targetFolder:GetChildren()) do
+            print("   - " .. v.Name)
+        end
+        print("   -------------------------------------------------------")
+    end
+else
+    print("   [GAGAL] Folder '" .. folderName .. "' TIDAK DITEMUKAN di Workspace.")
+    print("   Mungkin namanya salah atau belum loading.")
+end
+
+-- 3. CARI PAKSA (SCAN SELURUH WORKSPACE)
+print("\n3. Melakukan Deep Scan (Mencari nama '" .. targetName .. "' di SELURUH MAP)...")
+-- Kita pakai GetDescendants (Hati-hati ini bisa bikin lag sebentar kalau map besar)
+local foundGlobal = false
+
+for _, object in pairs(Workspace:GetDescendants()) do
+    if object.Name == targetName then
+        print("   [KETEMU!] Ditemukan objek bernama sama di lokasi lain:")
+        print("   LOKASI: " .. object:GetFullName())
+        print("   CLASS: " .. object.ClassName)
+        foundGlobal = true
+    end
+end
+
+if not foundGlobal then
+    print("   [HASIL SCAN] Tidak ditemukan apapun bernama '" .. targetName .. "' di Workspace.")
+    print("   Kemungkinan: NPC belum spawn, Jarak terlalu jauh (StreamingEnabled), atau nama salah.")
+end
+
+print("========== DIAGNOSA SELESAI ==========\n\n")
