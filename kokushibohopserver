@@ -1,13 +1,17 @@
 --[[
-    AUTO HOP & AUTO EXECUTE CHAIN
+    AUTO HOP V6: KILL & HOP LOOP
     Target: Workspace.CharactersAndNPCs.Kokushibo
-    Logic: Cek Boss -> Jika Hidup, Execute Script Cheat. Jika Mati, Hop Server.
+    Logic: 
+    1. Cek Boss.
+    2. Jika HIDUP -> Execute Cheat -> Tunggu Mati -> Hop.
+    3. Jika MATI -> Langsung Hop.
 ]]
 
 -- === KONFIGURASI ===
 local monsterName = "Kokushibo" 
 local folderName = "CharactersAndNPCs"
-local delayBeforeCheck = 4
+local delayBeforeCheck = 4      -- Waktu loading awal
+local delayAfterKill = 5        -- Waktu tunggu setelah boss mati (untuk ambil loot/drop) sebelum pindah
 -- ===================
 
 local Players = game:GetService("Players")
@@ -16,7 +20,7 @@ local TPS = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
-print("--- SYSTEM STARTED: HOP OR FARM ---")
+print("--- SYSTEM START: KILL & HOP LOOP ---")
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -25,10 +29,11 @@ task.wait(delayBeforeCheck)
 
 -- 1. FUNGSI HOP SERVER
 local function ServerHop()
+    print("Mencari server baru...")
     StarterGui:SetCore("SendNotification", {
         Title = "Auto Hop",
-        Text = "Boss Mati/Tidak Ada. Pindah server...",
-        Duration = 5
+        Text = "Pindah Server...",
+        Duration = 3
     })
     
     local PlaceID = game.PlaceId
@@ -56,42 +61,55 @@ local function ServerHop()
     end
 end
 
--- 2. LOGIKA PENGECEKAN & EKSEKUSI BERANTAI
+-- 2. LOGIKA UTAMA
 local folder = Workspace:FindFirstChild(folderName)
-local shouldHop = true -- Defaultnya kita anggap harus hop dulu
+local bossFound = false
+local targetHumanoid = nil
 
+-- Cek Keberadaan Boss
 if folder then
     local monster = folder:FindFirstChild(monsterName)
-    
     if monster then
         local humanoid = monster:FindFirstChild("Humanoid")
-        
-        -- CEK APAKAH BOSS HIDUP?
         if humanoid and humanoid.Health > 0 then
-            shouldHop = false -- JANGAN HOP, Boss ada!
-            
-            print("✅ BOSS DITEMUKAN! Mengaktifkan Script Farm...")
-            StarterGui:SetCore("SendNotification", {
-                Title = "TARGET LOCKED!",
-                Text = "Menjalankan Auto Farm...",
-                Duration = 5
-            })
-            
-            -- >>> INI BAGIAN PENTINGNYA <<<
-            -- Script kedua hanya dijalankan di sini:
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Omgshit/Scripts/main/MainLoader.lua"))()
-            
-        else
-            print("⚠️ Boss mati (HP 0).")
+            bossFound = true
+            targetHumanoid = humanoid
         end
-    else
-        print("❌ Model Boss tidak ada.")
     end
-else
-    print("❌ Folder Boss tidak ada.")
 end
 
--- 3. EKSEKUSI HOP JIKA DIPERLUKAN
-if shouldHop then
+-- 3. EKSEKUSI SKENARIO
+if bossFound then
+    -- SKENARIO A: BOSS ADA
+    print("✅ BOSS DITEMUKAN! Execute Script Cheat...")
+    StarterGui:SetCore("SendNotification", {
+        Title = "TARGET DITEMUKAN",
+        Text = "Menjalankan Auto Farm & Menunggu Kill...",
+        Duration = 5
+    })
+
+    -- A. Jalankan Script Cheat
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Omgshit/Scripts/main/MainLoader.lua"))()
+
+    -- B. LOOP MONITORING (Tunggu sampai boss mati)
+    print("⏳ Menunggu boss mati...")
+    repeat
+        task.wait(1) -- Cek setiap 1 detik
+    until targetHumanoid.Health <= 0 or not targetHumanoid.Parent
+
+    -- C. Boss Mati -> Hop
+    print("💀 BOSS MATI! Menunggu loot...")
+    StarterGui:SetCore("SendNotification", {
+        Title = "BOSS DEFEATED",
+        Text = "Pindah server dalam " .. delayAfterKill .. " detik...",
+        Duration = delayAfterKill
+    })
+    
+    task.wait(delayAfterKill) -- Tunggu sebentar barangkali ada drop item
+    ServerHop()
+
+else
+    -- SKENARIO B: BOSS TIDAK ADA / MATI
+    print("❌ Boss tidak ada/mati. Langsung Hop.")
     ServerHop()
 end
