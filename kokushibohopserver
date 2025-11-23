@@ -5,7 +5,7 @@
 ]]
 
 -- === KONFIGURASI ===
-local monsterName = "Kokushibo" 
+local monsterName = "Shinobu" 
 local parentFolderName = "CharactersAndNPC" -- Folder tempat monster berada
 local delayBeforeCheck = 3.5 -- Waktu tunggu loading (detik)
 -- ===================
