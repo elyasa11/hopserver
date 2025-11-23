@@ -1,13 +1,13 @@
 --[[
-    AUTO HOP V5: FINAL HEALTH CHECK
+    AUTO HOP & AUTO EXECUTE CHAIN
     Target: Workspace.CharactersAndNPCs.Kokushibo
-    Logika: Hanya berhenti jika Monster HIDUP (Health > 0)
+    Logic: Cek Boss -> Jika Hidup, Execute Script Cheat. Jika Mati, Hop Server.
 ]]
 
 -- === KONFIGURASI ===
 local monsterName = "Kokushibo" 
-local folderName = "CharactersAndNPCs" -- Folder Path (Sesuai ralatmu)
-local delayBeforeCheck = 4 -- Waktu tunggu loading (detik) agar tidak salah deteksi
+local folderName = "CharactersAndNPCs"
+local delayBeforeCheck = 4
 -- ===================
 
 local Players = game:GetService("Players")
@@ -16,31 +16,27 @@ local TPS = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
-print("--- SCRIPT DIMULAI: MENCARI BOSS HIDUP ---")
+print("--- SYSTEM STARTED: HOP OR FARM ---")
 
--- 1. Tunggu Game Loading
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 task.wait(delayBeforeCheck)
 
--- 2. Fungsi Server Hop (Versi V2 Stabil)
+-- 1. FUNGSI HOP SERVER
 local function ServerHop()
-    print("Kondisi tidak terpenuhi (Boss Mati/Hilang). Hop Server...")
     StarterGui:SetCore("SendNotification", {
         Title = "Auto Hop",
-        Text = "Boss MATI atau KOSONG. Mencari server baru...",
+        Text = "Boss Mati/Tidak Ada. Pindah server...",
         Duration = 5
     })
     
     local PlaceID = game.PlaceId
     local success, result = pcall(function()
-        -- sortOrder=Asc mencari server yang lebih sepi (fresh)
         return Http:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100"))
     end)
 
     if not success or not result or not result.data then
-        warn("Gagal API atau Rate Limit. Rejoin server lama...")
         TPS:Teleport(PlaceID, Players.LocalPlayer)
         return
     end
@@ -56,13 +52,13 @@ local function ServerHop()
         local randomServerId = Servers[math.random(1, #Servers)]
         TPS:TeleportToPlaceInstance(PlaceID, randomServerId, Players.LocalPlayer)
     else
-        warn("Tidak ada server lain yang valid.")
         TPS:Teleport(PlaceID, Players.LocalPlayer)
     end
 end
 
--- 3. LOGIKA UTAMA (CHECK HEALTH)
+-- 2. LOGIKA PENGECEKAN & EKSEKUSI BERANTAI
 local folder = Workspace:FindFirstChild(folderName)
+local shouldHop = true -- Defaultnya kita anggap harus hop dulu
 
 if folder then
     local monster = folder:FindFirstChild(monsterName)
@@ -70,30 +66,32 @@ if folder then
     if monster then
         local humanoid = monster:FindFirstChild("Humanoid")
         
-        -- INI LOGIKA KUNCINYA:
-        -- Kita pastikan Humanoid ada DAN Health-nya di atas 0
+        -- CEK APAKAH BOSS HIDUP?
         if humanoid and humanoid.Health > 0 then
-            -- KONDISI: HIDUP -> STOP HOP
-            print("✅ BOSS HIDUP DITEMUKAN! (HP: " .. math.floor(humanoid.Health) .. ")")
+            shouldHop = false -- JANGAN HOP, Boss ada!
+            
+            print("✅ BOSS DITEMUKAN! Mengaktifkan Script Farm...")
             StarterGui:SetCore("SendNotification", {
-                Title = "✅ BOSS HIDUP!",
-                Text = "Script STOP. Silakan hajar!",
-                Duration = 10
+                Title = "TARGET LOCKED!",
+                Text = "Menjalankan Auto Farm...",
+                Duration = 5
             })
-            -- Script berhenti di sini, tidak melakukan apa-apa lagi.
+            
+            -- >>> INI BAGIAN PENTINGNYA <<<
+            -- Script kedua hanya dijalankan di sini:
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Omgshit/Scripts/main/MainLoader.lua"))()
             
         else
-            -- KONDISI: ADA TAPI MATI (HP 0) -> HOP
-            print("⚠️ Boss ditemukan tapi sudah MATI (Health 0 / Di bawah tanah).")
-            ServerHop()
+            print("⚠️ Boss mati (HP 0).")
         end
     else
-        -- KONDISI: TIDAK ADA MODEL -> HOP
-        print("❌ Model Boss tidak ada di folder.")
-        ServerHop()
+        print("❌ Model Boss tidak ada.")
     end
 else
-    -- KONDISI: FOLDER GAK ADA -> HOP
-    print("❌ Folder " .. folderName .. " tidak ditemukan.")
+    print("❌ Folder Boss tidak ada.")
+end
+
+-- 3. EKSEKUSI HOP JIKA DIPERLUKAN
+if shouldHop then
     ServerHop()
 end
