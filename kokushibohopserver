@@ -7,7 +7,7 @@
 -- === KONFIGURASI ===
 local monsterName = "Shinobu" 
 local parentFolderName = "CharactersAndNPC" -- Folder tempat monster berada
-local delayBeforeCheck = 3.5 -- Waktu tunggu loading (detik)
+local delayBeforeCheck = 5 -- Waktu tunggu loading (detik)
 -- ===================
 
 local Players = game:GetService("Players")
