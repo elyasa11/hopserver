@@ -1,13 +1,13 @@
 --[[
-    AUTO HOP V3: KOKUSHIBO (SPECIFIC PATH)
+    AUTO HOP V5: FINAL HEALTH CHECK
     Target: Workspace.CharactersAndNPCs.Kokushibo
-    Dibuat untuk: Delta Executor
+    Logika: Hanya berhenti jika Monster HIDUP (Health > 0)
 ]]
 
 -- === KONFIGURASI ===
 local monsterName = "Kokushibo" 
-local parentFolderName = "CharactersAndNPCs" -- Folder tempat monster berada
-local delayBeforeCheck = 5 -- Waktu tunggu loading (detik)
+local folderName = "CharactersAndNPCs" -- Folder Path (Sesuai ralatmu)
+local delayBeforeCheck = 4 -- Waktu tunggu loading (detik) agar tidak salah deteksi
 -- ===================
 
 local Players = game:GetService("Players")
@@ -16,7 +16,7 @@ local TPS = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
-print("--- SCRIPT START: MENCARI BOSS KOKUSHIBO ---")
+print("--- SCRIPT DIMULAI: MENCARI BOSS HIDUP ---")
 
 -- 1. Tunggu Game Loading
 if not game:IsLoaded() then
@@ -24,22 +24,23 @@ if not game:IsLoaded() then
 end
 task.wait(delayBeforeCheck)
 
--- 2. Fungsi Server Hop V2 (Metode Stabil)
+-- 2. Fungsi Server Hop (Versi V2 Stabil)
 local function ServerHop()
-    print("Boss tidak ditemukan. Memulai Server Hop...")
+    print("Kondisi tidak terpenuhi (Boss Mati/Hilang). Hop Server...")
     StarterGui:SetCore("SendNotification", {
         Title = "Auto Hop",
-        Text = "Kokushibo (Boss) tidak ada. Pindah server...",
+        Text = "Boss MATI atau KOSONG. Mencari server baru...",
         Duration = 5
     })
     
     local PlaceID = game.PlaceId
     local success, result = pcall(function()
+        -- sortOrder=Asc mencari server yang lebih sepi (fresh)
         return Http:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100"))
     end)
 
     if not success or not result or not result.data then
-        warn("API Error. Rejoin biasa.")
+        warn("Gagal API atau Rate Limit. Rejoin server lama...")
         TPS:Teleport(PlaceID, Players.LocalPlayer)
         return
     end
@@ -55,35 +56,44 @@ local function ServerHop()
         local randomServerId = Servers[math.random(1, #Servers)]
         TPS:TeleportToPlaceInstance(PlaceID, randomServerId, Players.LocalPlayer)
     else
-        warn("Tidak ada server valid lain.")
+        warn("Tidak ada server lain yang valid.")
         TPS:Teleport(PlaceID, Players.LocalPlayer)
     end
 end
 
--- 3. LOGIKA CEK LOKASI SPESIFIK
--- Kita cek dulu apakah folder "CharactersAndNPC" ada
-local folder = Workspace:FindFirstChild(parentFolderName)
+-- 3. LOGIKA UTAMA (CHECK HEALTH)
+local folder = Workspace:FindFirstChild(folderName)
 
 if folder then
-    -- Jika foldernya ada, baru kita cari Kokushibo di dalamnya
-    local target = folder:FindFirstChild(monsterName)
+    local monster = folder:FindFirstChild(monsterName)
     
-    if target then
-        -- KONDISI: BOSS DITEMUKAN DI LOKASI BENAR
-        print("✅ BOSS KOKUSHIBO DITEMUKAN!")
-        StarterGui:SetCore("SendNotification", {
-            Title = "BOSS DITEMUKAN!",
-            Text = "Lokasi: Workspace." .. parentFolderName,
-            Duration = 10
-        })
-        -- Script berhenti di sini, kamu bisa farming.
+    if monster then
+        local humanoid = monster:FindFirstChild("Humanoid")
+        
+        -- INI LOGIKA KUNCINYA:
+        -- Kita pastikan Humanoid ada DAN Health-nya di atas 0
+        if humanoid and humanoid.Health > 0 then
+            -- KONDISI: HIDUP -> STOP HOP
+            print("✅ BOSS HIDUP DITEMUKAN! (HP: " .. math.floor(humanoid.Health) .. ")")
+            StarterGui:SetCore("SendNotification", {
+                Title = "✅ BOSS HIDUP!",
+                Text = "Script STOP. Silakan hajar!",
+                Duration = 10
+            })
+            -- Script berhenti di sini, tidak melakukan apa-apa lagi.
+            
+        else
+            -- KONDISI: ADA TAPI MATI (HP 0) -> HOP
+            print("⚠️ Boss ditemukan tapi sudah MATI (Health 0 / Di bawah tanah).")
+            ServerHop()
+        end
     else
-        -- Folder ada, tapi Kokushibo tidak ada di situ
-        print("❌ Folder ketemu, tapi Boss tidak ada.")
+        -- KONDISI: TIDAK ADA MODEL -> HOP
+        print("❌ Model Boss tidak ada di folder.")
         ServerHop()
     end
 else
-    -- KONDISI: FOLDER BAHKAN TIDAK ADA (Artinya map belum load sempurna atau Boss belum spawn sama sekali)
-    print("❌ Folder " .. parentFolderName .. " tidak ditemukan.")
+    -- KONDISI: FOLDER GAK ADA -> HOP
+    print("❌ Folder " .. folderName .. " tidak ditemukan.")
     ServerHop()
 end
