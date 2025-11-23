@@ -1,0 +1,89 @@
+--[[
+    AUTO HOP V3: KOKUSHIBO (SPECIFIC PATH)
+    Target: Workspace.CharactersAndNPC.Kokushibo
+    Dibuat untuk: Delta Executor
+]]
+
+-- === KONFIGURASI ===
+local monsterName = "Kokushibo" 
+local parentFolderName = "CharactersAndNPC" -- Folder tempat monster berada
+local delayBeforeCheck = 3.5 -- Waktu tunggu loading (detik)
+-- ===================
+
+local Players = game:GetService("Players")
+local Http = game:GetService("HttpService")
+local TPS = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
+
+print("--- SCRIPT START: MENCARI BOSS KOKUSHIBO ---")
+
+-- 1. Tunggu Game Loading
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(delayBeforeCheck)
+
+-- 2. Fungsi Server Hop V2 (Metode Stabil)
+local function ServerHop()
+    print("Boss tidak ditemukan. Memulai Server Hop...")
+    StarterGui:SetCore("SendNotification", {
+        Title = "Auto Hop",
+        Text = "Kokushibo (Boss) tidak ada. Pindah server...",
+        Duration = 5
+    })
+    
+    local PlaceID = game.PlaceId
+    local success, result = pcall(function()
+        return Http:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100"))
+    end)
+
+    if not success or not result or not result.data then
+        warn("API Error. Rejoin biasa.")
+        TPS:Teleport(PlaceID, Players.LocalPlayer)
+        return
+    end
+
+    local Servers = {}
+    for _, server in pairs(result.data) do
+        if server.playing < server.maxPlayers and server.id ~= game.JobId then
+            table.insert(Servers, server.id)
+        end
+    end
+
+    if #Servers > 0 then
+        local randomServerId = Servers[math.random(1, #Servers)]
+        TPS:TeleportToPlaceInstance(PlaceID, randomServerId, Players.LocalPlayer)
+    else
+        warn("Tidak ada server valid lain.")
+        TPS:Teleport(PlaceID, Players.LocalPlayer)
+    end
+end
+
+-- 3. LOGIKA CEK LOKASI SPESIFIK
+-- Kita cek dulu apakah folder "CharactersAndNPC" ada
+local folder = Workspace:FindFirstChild(parentFolderName)
+
+if folder then
+    -- Jika foldernya ada, baru kita cari Kokushibo di dalamnya
+    local target = folder:FindFirstChild(monsterName)
+    
+    if target then
+        -- KONDISI: BOSS DITEMUKAN DI LOKASI BENAR
+        print("✅ BOSS KOKUSHIBO DITEMUKAN!")
+        StarterGui:SetCore("SendNotification", {
+            Title = "BOSS DITEMUKAN!",
+            Text = "Lokasi: Workspace." .. parentFolderName,
+            Duration = 10
+        })
+        -- Script berhenti di sini, kamu bisa farming.
+    else
+        -- Folder ada, tapi Kokushibo tidak ada di situ
+        print("❌ Folder ketemu, tapi Boss tidak ada.")
+        ServerHop()
+    end
+else
+    -- KONDISI: FOLDER BAHKAN TIDAK ADA (Artinya map belum load sempurna atau Boss belum spawn sama sekali)
+    print("❌ Folder " .. parentFolderName .. " tidak ditemukan.")
+    ServerHop()
+end
