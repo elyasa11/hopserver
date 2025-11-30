@@ -3,6 +3,7 @@ import subprocess
 import time
 import json
 import random
+import glob
 
 # ================= KONFIGURASI =================
 BASE_PACKAGES = [
@@ -12,14 +13,11 @@ BASE_PACKAGES = [
     "com.roblox.clienw"
 ]
 
-# Path Shared Workspace (Sesuai hasil tes kamu)
 WORKSPACE_PATH = "/storage/emulated/0/Delta/Workspace"
-
-# Toleransi Freeze (Detik)
-FREEZE_THRESHOLD = 120 
+FREEZE_THRESHOLD = 120  # Waktu toleransi macet (detik)
 MAPPING_TIMEOUT = 60
 
-# ================= FUNGSI ROOT =================
+# ================= FUNGSI DASAR =================
 
 def run_root(cmd):
     return subprocess.run(f"su -c '{cmd}'", shell=True, capture_output=True, text=True).stdout.strip()
@@ -46,99 +44,85 @@ def is_app_running(pkg):
     except:
         return False
 
-# ================= FUNGSI FILE & DATABASE =================
+# ================= FILE OPERATIONS =================
 
 def get_status_files():
     files = run_root(f"ls {WORKSPACE_PATH}/status_*.json")
-    if "No such file" in files or not files:
-        return []
+    if "No such file" in files or not files: return []
     return [f for f in files.split('\n') if f.strip()]
 
 def read_json_root(filepath):
     try:
         content = run_root(f"cat {filepath}")
-        if content:
-            return json.loads(content)
-    except:
-        pass
+        if content: return json.loads(content)
+    except: pass
     return None
 
 def write_json_root(filepath, data):
-    """Fungsi Admin: Menulis/Update file JSON via Root"""
     try:
-        json_str = json.dumps(data)
-        # Escape quote untuk command shell
-        json_str = json_str.replace('"', '\\"') 
+        json_str = json.dumps(data).replace('"', '\\"')
         run_root(f"echo \"{json_str}\" > {filepath}")
-        return True
-    except Exception as e:
-        print(f"Error writing JSON: {e}")
-        return False
+    except: pass
 
 def inject_hop_signal(filepath, data):
-    """Menyuntikkan perintah HOP ke dalam file JSON"""
-    print(f"   >>> [WASIT] Menyuntikkan Flag 'HOP' ke {os.path.basename(filepath)}...")
+    print(f"   >>> [WASIT] Memicu HOP di file {os.path.basename(filepath)}...")
     data['action'] = "HOP"
     write_json_root(filepath, data)
 
-def inject_anti_zombie(filepath, data):
-    """Menyuntikkan Timestamp baru agar tidak terdeteksi freeze di loop berikutnya"""
-    print(f"   >>> [ANTI-FREEZE] Menyuntikkan Timestamp Baru ke {os.path.basename(filepath)}...")
-    data['timestamp'] = time.time() # Update waktu jadi SEKARANG
+def inject_restart_status(filepath, data):
+    # Kita tandai status RESTARTING agar saat app baru buka, dia tidak dianggap freeze
     data['status'] = "RESTARTING"
+    # Kita update timestamp biar berubah angkanya
+    data['timestamp'] = data.get('timestamp', 0) + 1 
     write_json_root(filepath, data)
 
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER: DATABASE METHOD (V2) ===")
+    print("=== ROBLOX MANAGER: STAGNATION LOGIC (V3) ===")
     
     place_id = input("Masukkan Place ID: ").strip()
     if not place_id: return
 
-    # Mapping: { 'com.roblox.clienu': { 'file': path, 'user': name } }
+    # STRUKTUR MEMORI BARU:
+    # { 'com.roblox...': { 'file': path, 'user': name, 'last_ts': 12345, 'last_change_time': time.time() } }
     package_map = {}
 
-    print(f"\n[PHASE 1] AUTO-MAPPING (Tidak Menghapus File)")
+    print(f"\n[PHASE 1] AUTO-MAPPING")
     
     for pkg in BASE_PACKAGES:
         clean_pkg = get_pkg_name(pkg)
         print(f"\n--> Meluncurkan: {clean_pkg}")
         
-        # Snapshot timestamp file sebelum launch
+        # Snapshot timestamp awal
         files_state_before = {}
         for f in get_status_files():
             d = read_json_root(f)
-            if d and 'timestamp' in d:
-                files_state_before[f] = float(d['timestamp'])
+            if d and 'timestamp' in d: files_state_before[f] = float(d['timestamp'])
         
         force_close(pkg)
         time.sleep(1)
         launch_game(pkg, place_id)
         
-        # Waktu kita meluncurkan app ini
-        launch_ts = time.time()
-        
-        print("    Menunggu update file JSON...", end="", flush=True)
+        print("    Menunggu file bergerak...", end="", flush=True)
         detected_info = None
 
         for _ in range(MAPPING_TIMEOUT):
             time.sleep(1)
             files_now = get_status_files()
-            
             for f in files_now:
                 data = read_json_root(f)
                 if data and 'timestamp' in data:
                     ts = float(data['timestamp'])
                     
-                    # Logic: File baru ATAU File lama yang baru saja diupdate
-                    is_new = f not in files_state_before
-                    is_updated = (f in files_state_before) and (ts > files_state_before[f])
-                    
-                    if (is_new or is_updated) and ts >= launch_ts:
+                    # Logic: File yang timestampnya BERUBAH dari sebelumnya
+                    prev_ts = files_state_before.get(f, 0)
+                    if ts > prev_ts:
                         detected_info = {
                             'file': f,
-                            'user': data.get('username', 'Unknown')
+                            'user': data.get('username', 'Unknown'),
+                            'last_ts': ts,
+                            'last_change_time': time.time() # Waktu terakhir data berubah
                         }
                         break
             if detected_info: break
@@ -147,16 +131,16 @@ def main():
             print(f" OK! ({detected_info['user']})")
             package_map[pkg] = detected_info
         else:
-            print(" Timeout!")
+            print(" Timeout! (Lanjut tanpa monitoring freeze)")
 
     print("\n" + "="*50)
-    print(f"[PHASE 2] MONITORING AKTIF ({len(package_map)} akun)")
+    print(f"[PHASE 2] MONITORING AKTIF")
     print("="*50)
 
     while True:
         now = time.time()
         
-        # A. LOOP STATUS (ANTI-FREEZE)
+        # A. LOOP MONITORING
         for pkg in BASE_PACKAGES:
             if pkg not in package_map: continue
             
@@ -164,67 +148,72 @@ def main():
             info = package_map[pkg]
             fpath = info['file']
             
-            # 1. Cek Crash
+            # 1. Cek App Crash
             if not is_app_running(pkg):
                 print(f"\n[CRASH] {clean} mati. Relaunching...")
                 launch_game(pkg, place_id)
-                # Suntik timestamp agar saat nyala tidak dianggap freeze
-                d = read_json_root(fpath)
-                if d: inject_anti_zombie(fpath, d)
+                # Reset timer agar dianggap baru mulai
+                info['last_change_time'] = now 
                 continue
             
-            # 2. Cek Freeze
+            # 2. Cek Freeze (Stagnation Logic)
             data = read_json_root(fpath)
+            
             if data and 'timestamp' in data:
-                ts = float(data['timestamp'])
+                current_file_ts = float(data['timestamp'])
                 status = data.get('status', 'UNKNOWN')
                 
-                # Jika status masih 'RESTARTING' (buatan Python), abaikan freeze check
+                # Jika status RESTARTING (buatan Python), jangan dihitung
                 if status == "RESTARTING":
-                    pass
+                    info['last_change_time'] = now # Terus reset timer selama masih restarting
+                    info['last_ts'] = current_file_ts
+                    continue
+
+                # Bandingkan timestamp file SEKARANG vs YANG DISIMPAN DI MEMORI
+                if current_file_ts > info['last_ts']:
+                    # BERGERAK! Update memori
+                    info['last_ts'] = current_file_ts
+                    info['last_change_time'] = now # Reset timer macet
                 else:
-                    lag = now - ts
-                    if lag > FREEZE_THRESHOLD:
-                        print(f"\n[FREEZE] {info['user']} macet {int(lag)}s!")
+                    # DIAM (Stagnant). Hitung sudah berapa lama diamnya?
+                    stagnant_duration = now - info['last_change_time']
+                    
+                    if stagnant_duration > FREEZE_THRESHOLD:
+                        print(f"\n[FREEZE] {info['user']} ({clean}) macet {int(stagnant_duration)}s!")
                         
-                        # >>> MAGIC METHOD 2: SUNTIK TIMESTAMP <<<
-                        inject_anti_zombie(fpath, data)
+                        # Suntik Status Restarting
+                        inject_restart_status(fpath, data)
                         
                         print("         -> Restarting App...")
                         force_close(pkg)
                         time.sleep(2)
                         launch_game(pkg, place_id)
+                        
+                        # Reset memory
+                        info['last_change_time'] = now
+                        info['last_ts'] = current_file_ts + 1 # Fake increment biar gak langsung freeze lagi
 
-        # B. LOOP COLLISION (ANTI-TABRAKAN)
+        # B. LOOP TABRAKAN (Collision)
+        # (Sama seperti sebelumnya, tapi validasi file diperlonggar)
         server_map = {}
         all_files = get_status_files()
         
-        # Kumpulkan data (Filter data basi > 60s)
         for f in all_files:
             d = read_json_root(f)
-            if d and 'jobId' in d and 'timestamp' in d:
-                if now - float(d['timestamp']) < 60:
-                    jid = d['jobId']
-                    # Simpan data lengkap untuk keperluan inject
-                    if jid not in server_map: server_map[jid] = []
-                    server_map[jid].append({'file': f, 'data': d, 'user': d.get('username')})
+            # Kita anggap valid jika timestamp berubah dalam 2 menit terakhir (relatif ke jam sistem file itu sendiri)
+            # Karena logic stagnasi sudah handle freeze, di sini kita longgar saja
+            if d and 'jobId' in d:
+                jid = d['jobId']
+                if jid not in server_map: server_map[jid] = []
+                server_map[jid].append({'file': f, 'data': d, 'user': d.get('username')})
         
-        # Cek Bentrok
-        collision = False
         for jid, sessions in server_map.items():
             if len(sessions) > 1:
-                collision = True
-                users_involved = [s['user'] for s in sessions]
-                print(f"\n[TABRAKAN] Server {jid[:8]}.. : {users_involved}")
-                
-                # Usir user ke-2 dst
+                print(f"\n[TABRAKAN] Server {jid[:8]}.. : {[s['user'] for s in sessions]}")
                 for victim in sessions[1:]:
-                    # >>> MAGIC METHOD 2: SUNTIK FLAG 'HOP' <<<
                     inject_hop_signal(victim['file'], victim['data'])
         
-        if not collision:
-            print(".", end="", flush=True)
-            
+        print(".", end="", flush=True)
         time.sleep(5)
 
 if __name__ == "__main__":
