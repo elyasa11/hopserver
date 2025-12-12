@@ -1,9 +1,9 @@
 --[[
-    GRAND MASTER SCRIPT (FIXED HOP)
+    GRAND MASTER SCRIPT (FIXED LOOP)
     Fitur:
     1. Auto Farm (Cheat)
-    2. Potato Graphics
-    3. Monitor & Hop dengan BLACKLIST AKUN LAIN (Anti-Tabrakan 100%)
+    2. Monitor & Hop (DENGAN RESET FLAG SEBELUM TELEPORT)
+    3. Potato Graphics
 ]]
 
 local Http = game:GetService("HttpService")
@@ -15,7 +15,7 @@ local Workspace = game:GetService("Workspace")
 local myUser = Players.LocalPlayer.Name
 local myStatusFile = "status_" .. myUser .. ".json"
 
-print("--- SYSTEM START: 3 JALUR (ANTI-COLLISION PRO) ---")
+print("--- SYSTEM START: 3 JALUR (ANTI-LOOP FIX) ---")
 
 -- ================= JALUR 1: CHEAT =================
 task.spawn(function()
@@ -30,21 +30,18 @@ end)
 task.spawn(function()
     print(">>> [THREAD 2] Memuat Smart Monitor...")
 
-    -- [FITUR BARU] Cek Server Akun Lain (Radar)
+    -- Fungsi Blacklist & Smart Hop
     local function GetBlacklist()
         local blacklist = {}
-        blacklist[game.JobId] = true -- Blacklist server sendiri
-        
-        -- Scan folder workspace
+        blacklist[game.JobId] = true 
         local files = listfiles("") 
         for _, path in pairs(files) do
             if string.find(path, "status_") and string.find(path, ".json") then
                 local success, content = pcall(readfile, path)
                 if success then
                     local data = Http:JSONDecode(content)
-                    -- Jika ada JobID & Data Baru (< 5 menit)
                     if data.jobId and data.timestamp and (os.time() - data.timestamp < 300) then
-                        blacklist[data.jobId] = true -- MASUKKAN KE DAFTAR TERLARANG
+                        blacklist[data.jobId] = true
                     end
                 end
             end
@@ -52,15 +49,13 @@ task.spawn(function()
         return blacklist
     end
 
-    -- [FITUR BARU] Hop Server Pintar
     local function SmartServerHop()
-        print("🕵️ Melakukan Smart Hop (Menghindari Akun Lain)...")
+        print("🕵️ Melakukan Smart Hop...")
         local BannedServers = GetBlacklist()
         local PlaceID = game.PlaceId
         local cursor = ""
         local found = false
 
-        -- Cari sampai 10 halaman
         for i = 1, 10 do
             local url = "https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Desc&limit=100"
             if cursor ~= "" then url = url .. "&cursor=" .. cursor end
@@ -69,9 +64,7 @@ task.spawn(function()
             
             if success and result and result.data then
                 if result.nextPageCursor then cursor = result.nextPageCursor end
-                
                 for _, server in pairs(result.data) do
-                    -- SYARAT: Server tidak ada di Blacklist & Belum Penuh
                     if not BannedServers[server.id] and server.playing < server.maxPlayers then
                         print("✅ Target Aman: " .. server.id)
                         TPS:TeleportToPlaceInstance(PlaceID, server.id, Players.LocalPlayer)
@@ -84,10 +77,7 @@ task.spawn(function()
             task.wait(0.2)
         end
         
-        if not found then
-            print("❌ Tidak nemu server aman. Rejoin random.")
-            TPS:Teleport(PlaceID, Players.LocalPlayer)
-        end
+        if not found then TPS:Teleport(PlaceID, Players.LocalPlayer) end
     end
 
     -- Loop Utama
@@ -106,9 +96,30 @@ task.spawn(function()
         end
 
         if shouldHop then
-            print("⚠️ Perintah HOP Diterima!")
-            SmartServerHop() -- Panggil fungsi pintar
+            print("⚠️ Perintah HOP Diterima! Mereset status dan pindah...")
+            
+            -- >>> PERBAIKAN PENTING DI SINI <<<
+            -- 1. HAPUS PERINTAH DULU (Reset Action jadi NONE)
+            local cleanData = {
+                username = myUser,
+                jobId = game.JobId,
+                placeId = game.PlaceId,
+                timestamp = os.time(),
+                action = "NONE", -- Matikan Trigger HOP
+                status = "HOPPING"
+            }
+            pcall(function() writefile(myStatusFile, Http:JSONEncode(cleanData)) end)
+            
+            -- 2. TUNGGU SEBENTAR (Biar file tersimpan)
+            task.wait(0.5) 
+            
+            -- 3. BARU PINDAH SERVER
+            SmartServerHop()
+            
+            -- Stop loop sementara agar tidak spam hop saat teleport process
+            task.wait(10) 
         else
+            -- Laporan Rutin Normal
             local data = {
                 username = myUser,
                 jobId = game.JobId,
