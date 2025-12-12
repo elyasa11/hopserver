@@ -1,8 +1,9 @@
 --[[
-    GRAND MASTER SCRIPT (3 THREADS)
-    Thread A: Auto Farm (Cheat)
-    Thread B: Monitor & Hop (Database)
-    Thread C: Potato Graphics (Anti-Lag)
+    GRAND MASTER SCRIPT (FIXED HOP)
+    Fitur:
+    1. Auto Farm (Cheat)
+    2. Potato Graphics
+    3. Monitor & Hop dengan BLACKLIST AKUN LAIN (Anti-Tabrakan 100%)
 ]]
 
 local Http = game:GetService("HttpService")
@@ -11,71 +12,93 @@ local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
--- === KONFIGURASI UMUM ===
 local myUser = Players.LocalPlayer.Name
 local myStatusFile = "status_" .. myUser .. ".json"
 
-print("--- SYSTEM START: 3 JALUR PARALEL ---")
+print("--- SYSTEM START: 3 JALUR (ANTI-COLLISION PRO) ---")
 
--- =========================================================
--- JALUR 1: AUTO FARM (CHEAT)
--- =========================================================
+-- ================= JALUR 1: CHEAT =================
 task.spawn(function()
     print(">>> [THREAD 1] Memuat Script Cheat...")
-    task.wait(2) -- Beri jeda sedikit agar game stabil dulu
-    
-    local success, err = pcall(function()
-        -- GANTI LINK INI DENGAN SCRIPT FARM KAMU
+    task.wait(2)
+    pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/kaisenlmao/loader/refs/heads/main/chiyo.lua"))()
     end)
-    
-    if success then
-        print(">>> [THREAD 1] Cheat Berhasil Jalan.")
-    else
-        warn(">>> [THREAD 1] Gagal memuat Cheat: " .. tostring(err))
-    end
 end)
 
--- =========================================================
--- JALUR 2: MONITOR & HOP (KOMUNIKASI PYTHON)
--- =========================================================
+-- ================= JALUR 2: MONITOR & SMART HOP =================
 task.spawn(function()
-    print(">>> [THREAD 2] Memuat Monitor...")
-    
-    -- Fungsi Hop Server
-    local function ServerHop()
-        local PlaceID = game.PlaceId
-        local success, result = pcall(function()
-            return Http:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100"))
-        end)
-        if success and result and result.data then
-            local Servers = {}
-            for _, server in pairs(result.data) do
-                if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                    table.insert(Servers, server.id)
+    print(">>> [THREAD 2] Memuat Smart Monitor...")
+
+    -- [FITUR BARU] Cek Server Akun Lain (Radar)
+    local function GetBlacklist()
+        local blacklist = {}
+        blacklist[game.JobId] = true -- Blacklist server sendiri
+        
+        -- Scan folder workspace
+        local files = listfiles("") 
+        for _, path in pairs(files) do
+            if string.find(path, "status_") and string.find(path, ".json") then
+                local success, content = pcall(readfile, path)
+                if success then
+                    local data = Http:JSONDecode(content)
+                    -- Jika ada JobID & Data Baru (< 5 menit)
+                    if data.jobId and data.timestamp and (os.time() - data.timestamp < 300) then
+                        blacklist[data.jobId] = true -- MASUKKAN KE DAFTAR TERLARANG
+                    end
                 end
             end
-            if #Servers > 0 then
-                TPS:TeleportToPlaceInstance(PlaceID, Servers[math.random(1, #Servers)], Players.LocalPlayer)
-            else
-                TPS:Teleport(PlaceID, Players.LocalPlayer)
+        end
+        return blacklist
+    end
+
+    -- [FITUR BARU] Hop Server Pintar
+    local function SmartServerHop()
+        print("🕵️ Melakukan Smart Hop (Menghindari Akun Lain)...")
+        local BannedServers = GetBlacklist()
+        local PlaceID = game.PlaceId
+        local cursor = ""
+        local found = false
+
+        -- Cari sampai 10 halaman
+        for i = 1, 10 do
+            local url = "https://games.roblox.com/v1/games/" .. PlaceID .. "/servers/Public?sortOrder=Desc&limit=100"
+            if cursor ~= "" then url = url .. "&cursor=" .. cursor end
+            
+            local success, result = pcall(function() return Http:JSONDecode(game:HttpGet(url)) end)
+            
+            if success and result and result.data then
+                if result.nextPageCursor then cursor = result.nextPageCursor end
+                
+                for _, server in pairs(result.data) do
+                    -- SYARAT: Server tidak ada di Blacklist & Belum Penuh
+                    if not BannedServers[server.id] and server.playing < server.maxPlayers then
+                        print("✅ Target Aman: " .. server.id)
+                        TPS:TeleportToPlaceInstance(PlaceID, server.id, Players.LocalPlayer)
+                        found = true
+                        break
+                    end
+                end
             end
-        else
+            if found then break end
+            task.wait(0.2)
+        end
+        
+        if not found then
+            print("❌ Tidak nemu server aman. Rejoin random.")
             TPS:Teleport(PlaceID, Players.LocalPlayer)
         end
     end
 
-    -- Loop Absen & Cek Perintah
+    -- Loop Utama
     while true do
-        task.wait(3) -- Lapor setiap 3 detik
+        task.wait(3)
 
-        -- A. BACA FILE (Cek Perintah HOP)
         local shouldHop = false
         if isfile(myStatusFile) then
             local success, content = pcall(readfile, myStatusFile)
             if success and content and content ~= "" then
                 local parseSuccess, data = pcall(Http.JSONDecode, Http, content)
-                -- Jika ada bendera ACTION: HOP dari Python
                 if parseSuccess and data and data.action == "HOP" then
                     shouldHop = true
                 end
@@ -83,33 +106,26 @@ task.spawn(function()
         end
 
         if shouldHop then
-            print("⚠️ [THREAD 2] Menerima Perintah HOP dari Python!")
-            ServerHop()
+            print("⚠️ Perintah HOP Diterima!")
+            SmartServerHop() -- Panggil fungsi pintar
         else
-            -- B. TULIS LAPORAN (Update Timestamp untuk Anti-Freeze)
             local data = {
                 username = myUser,
                 jobId = game.JobId,
                 placeId = game.PlaceId,
-                timestamp = os.time(), -- Kunci Anti-Freeze
+                timestamp = os.time(),
                 action = "NONE",
                 status = "ACTIVE"
             }
-            pcall(function()
-                writefile(myStatusFile, Http:JSONEncode(data))
-            end)
+            pcall(function() writefile(myStatusFile, Http:JSONEncode(data)) end)
         end
     end
 end)
 
--- =========================================================
--- JALUR 3: POTATO GRAPHICS (OPTIMASI VISUAL)
--- =========================================================
+-- ================= JALUR 3: POTATO GRAPHICS =================
 task.spawn(function()
     print(">>> [THREAD 3] Memuat Potato Graphics...")
-    task.wait(0.5) -- Jalan paling awal
-
-    -- Fungsi Hapus Aman
+    task.wait(0.5)
     local function SafeClear(v)
         pcall(function()
             if v:IsA("BasePart") and not v:IsA("Terrain") then
@@ -123,8 +139,6 @@ task.spawn(function()
             end
         end)
     end
-
-    -- 1. Bersihkan Lighting
     pcall(function()
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
@@ -133,18 +147,8 @@ task.spawn(function()
             if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then v:Destroy() end
         end
     end)
-
-    -- 2. Bersihkan Map Awal
-    for _, v in pairs(Workspace:GetDescendants()) do
-        SafeClear(v)
-    end
-    
-    -- 3. Monitor Map Baru (StreamingEnabled)
-    Workspace.DescendantAdded:Connect(function(v)
-        SafeClear(v)
-    end)
-    
-    print(">>> [THREAD 3] Grafik Dioptimalkan.")
+    for _, v in pairs(Workspace:GetDescendants()) do SafeClear(v) end
+    Workspace.DescendantAdded:Connect(function(v) SafeClear(v) end)
 end)
 
-print("✅ SEMUA SISTEM BERJALAN AMAN")
+print("✅ SISTEM SIAP")
