@@ -8,7 +8,7 @@ import urllib.request
 
 # ================= KONFIGURASI =================
 BASE_PACKAGES = [
-    "com.roblox.client",
+    "com.roblox.clienx",
     "com.roblox.clienu",
     "com.roblox.clienv",
     "com.roblox.clienw"
