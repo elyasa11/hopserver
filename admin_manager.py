@@ -5,7 +5,7 @@ import json
 import random
 import glob
 import urllib.request
-import re # Tambahan untuk membaca link
+import re 
 
 # ================= KONFIGURASI DASAR =================
 BASE_PACKAGES = [
@@ -19,7 +19,7 @@ WORKSPACE_PATH = "/storage/emulated/0/Delta/Workspace"
 FREEZE_THRESHOLD = 120
 MAPPING_TIMEOUT = 60
 
-# Penyimpanan Setting (Diisi otomatis lewat menu nanti)
+# Global Config Storage
 PACKAGE_SETTINGS = {} 
 
 # ================= FUNGSI SISTEM =================
@@ -34,31 +34,11 @@ def force_close(pkg):
     clean = get_pkg_name(pkg)
     os.system(f"/system/bin/am force-stop {clean}")
 
-# [BARU] Fungsi Pintar Ekstrak Kode dari Link Share
-def extract_vip_code(input_str):
-    if not input_str or input_str.strip() == "": return None
-    
-    # 1. Cek format Share Link (https://www.roblox.com/share?code=...)
-    match_share = re.search(r'code=([a-zA-Z0-9\-]+)', input_str)
-    if match_share:
-        return match_share.group(1)
-        
-    # 2. Cek format Link VIP Lama (privateServerLinkCode=...)
-    match_old = re.search(r'privateServerLinkCode=([a-zA-Z0-9\-]+)', input_str)
-    if match_old:
-        return match_old.group(1)
-
-    # 3. Jika cuma kode pendek (bukan url), anggap itu kodenya
-    if "http" not in input_str and "roblox.com" not in input_str:
-        return input_str.strip()
-        
-    return input_str # Fallback (kembalikan aslinya kalau bingung)
-
-# [UPDATE] Launch Game Support Config & VIP
+# [UPDATE V5.2] Logic Hybrid: Raw Link vs Deep Link
 def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
     
-    # Ambil setting dari memori jika parameter kosong
+    # Ambil setting dari memori
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
@@ -67,23 +47,37 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
         print(f"❌ Error: Tidak ada Place ID untuk {clean}")
         return
 
-    # Bersihkan Kode VIP (Ambil kode dari link panjang)
-    clean_vip_code = extract_vip_code(vip_link_input)
+    # TENTUKAN TIPE LINK YANG AKAN DIPAKAI
+    final_uri = ""
+    is_vip = False
 
-    # Susun Link Deep Link Android
-    uri = f"roblox://placeId={specific_place_id}"
-    
-    if clean_vip_code:
-        # Masukkan kode yang sudah dibersihkan
-        uri += f"&privateServerLinkCode={clean_vip_code}"
-        print(f"    -> Target: 🔒 Private Server (Code: {clean_vip_code[:6]}...)")
+    # KASUS A: User memasukkan Link HTTPS (Share Link / VIP Link)
+    # Kita pakai link mentah-mentah, biarkan Roblox App yang mikir.
+    if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
+        final_uri = vip_link_input.strip()
+        is_vip = True
+        print(f"    -> Target: 🔗 Private Server (Direct Link)")
+
+    # KASUS B: User memasukkan KODE SAJA (Format Lama)
+    # Kita harus rakit linknya manual
+    elif vip_link_input and vip_link_input.strip() != "":
+        final_uri = f"roblox://placeId={specific_place_id}&privateServerLinkCode={vip_link_input.strip()}"
+        is_vip = True
+        print(f"    -> Target: 🔒 Private Server (Code Injection)")
+
+    # KASUS C: Public Server (Job ID atau Random)
     elif job_id:
-        uri += f"&gameId={job_id}"
+        final_uri = f"roblox://placeId={specific_place_id}&gameId={job_id}"
         print(f"    -> Target: 🌍 Public Server {job_id[:8]}...")
+    
+    # KASUS D: Random Public
     else:
+        final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Random Server")
 
-    cmd = f"/system/bin/am start --user 0 -a android.intent.action.VIEW -d \"{uri}\" {clean}"
+    # EKSEKUSI
+    # Penting: Kita panggil package spesifik (clean) agar link dibuka oleh Roblox yang benar
+    cmd = f"/system/bin/am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
 
 def is_app_running(pkg):
@@ -144,7 +138,7 @@ def inject_restart_status(filepath, data):
     data['timestamp'] = data.get('timestamp', 0) + 1 
     write_json_root(filepath, data)
 
-# ================= INPUT MENU (SETUP) =================
+# ================= INPUT MENU =================
 
 def setup_configuration():
     print("\n--- PENGATURAN MODE GAME ---")
@@ -154,15 +148,13 @@ def setup_configuration():
 
     if mode == "1":
         pid = input("Masukkan Place ID: ").strip()
-        print("Masukkan Link Private Server (Share Link):")
+        print("Masukkan Link Private Server (Full Link):")
         vip = input("(Kosongkan jika Public): ").strip()
         
-        # Simpan ke semua paket
         for pkg in BASE_PACKAGES:
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
             
     else:
-        # Input satu per satu
         for pkg in BASE_PACKAGES:
             clean = get_pkg_name(pkg)
             print(f"\nSetting untuk {clean}:")
@@ -184,9 +176,8 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER V5.1: AUTO RESTART & SHARE LINK ===")
+    print("=== ROBLOX MANAGER V5.2: RAW LINK SUPPORT ===")
     
-    # 1. Jalankan Setup Menu
     RESTART_INTERVAL = setup_configuration()
     LAST_GLOBAL_RESTART = time.time()
     
@@ -197,14 +188,11 @@ def main():
     
     server_pools = {} 
     
-    # 2. Loop Peluncuran Awal
     for i, pkg in enumerate(BASE_PACKAGES):
         clean_pkg = get_pkg_name(pkg)
-        
-        # Ambil setting yang sudah diinput
         settings = PACKAGE_SETTINGS[pkg]
         pid = settings['place_id']
-        vip = settings['vip_code'] 
+        vip = settings['vip_code']
         
         print(f"\n--> Meluncurkan: {clean_pkg}")
         
@@ -215,25 +203,22 @@ def main():
                 server_pools[pid] = get_public_servers(pid)
                 random.shuffle(server_pools[pid])
             
-            # Ambil server dari pool biar beda-beda
             if len(server_pools[pid]) > 0:
                 target_job_id = server_pools[pid].pop(0)
         
-        # Snapshot file
         files_state_before = {}
         for f in get_status_files():
             d = read_json_root(f)
             if d and 'timestamp' in d: files_state_before[f] = float(d['timestamp'])
         
-        # Launch (Pass vip string mentah, nanti launch_game yg bersihkan)
         force_close(pkg)
         time.sleep(1)
+        # Launch Game sekarang akan menangani link raw dengan benar
         launch_game(pkg, job_id=target_job_id) 
         
         print("    Mencari file milik dia...", end="", flush=True)
         detected_info = None
 
-        # Mapping Logic
         for _ in range(MAPPING_TIMEOUT):
             time.sleep(1)
             files_now = get_status_files()
@@ -270,25 +255,20 @@ def main():
     while True:
         now = time.time()
         
-        # === A. CEK JADWAL RESTART GLOBAL ===
+        # === A. JADWAL RESTART ===
         if RESTART_INTERVAL > 0 and (now - LAST_GLOBAL_RESTART > RESTART_INTERVAL):
             print("\n⏰ WAKTUNYA JADWAL RESTART! MELUNCURKAN ULANG SEMUA...")
-            
             for pkg in BASE_PACKAGES:
-                clean_pkg = get_pkg_name(pkg)
-                print(f"   -> Restarting {clean_pkg}...")
+                print(f"   -> Restarting {get_pkg_name(pkg)}...")
                 force_close(pkg)
                 time.sleep(1)
-                launch_game(pkg) # Re-launch sesuai config awal
-                
-                # Reset Timer Freeze agar tidak error
+                launch_game(pkg) 
                 if pkg in package_map:
                     package_map[pkg]['last_change_time'] = time.time()
-            
             LAST_GLOBAL_RESTART = time.time()
             print("✅ Restart Selesai. Kembali Monitoring.\n")
-            time.sleep(10) # Beri waktu napas
-            continue # Skip loop kali ini
+            time.sleep(10) 
+            continue 
 
         # === B. LOOP MONITORING (ANTI-FREEZE) ===
         for pkg in BASE_PACKAGES:
@@ -336,20 +316,13 @@ def main():
         for f in all_files:
             d = read_json_root(f)
             if d and 'jobId' in d:
-                # Jangan masukkan user VIP ke logic tabrakan (karena VIP server cuma 1, pasti JobID sama)
-                # Kita cek manual apakah paket ini pake VIP atau tidak
-                # (Sederhananya: Kalau VIP, script Python JANGAN inject HOP)
-                
                 jid = d['jobId']
                 if jid not in server_map: server_map[jid] = []
                 server_map[jid].append({'file': f, 'data': d, 'user': d.get('username')})
         
         for jid, sessions in server_map.items():
             if len(sessions) > 1:
-                # Tabrakan terdeteksi. Inject HOP ke korban.
-                # Tapi tunggu, kalau mereka main di VIP Server, jangan di HOP!
-                # Karena kita gak punya akses mudah cek 'apakah ini VIP' dari file JSON,
-                # kita biarkan saja. User yang main VIP harusnya paham risiko tabrakan jika share link sama.
+                # Tabrakan di Public Server
                 for victim in sessions[1:]:
                     inject_hop_signal(victim['file'], victim['data'])
         
