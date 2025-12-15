@@ -9,7 +9,7 @@ import re # Tambahan untuk membaca link
 
 # ================= KONFIGURASI DASAR =================
 BASE_PACKAGES = [
-    "com.roblox.clienx",
+    "com.roblox.client",
     "com.roblox.clienu",
     "com.roblox.clienv",
     "com.roblox.clienw"
