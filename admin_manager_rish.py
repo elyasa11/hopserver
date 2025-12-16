@@ -82,13 +82,7 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
     # MODIFIKASI: Membungkus perintah AM START ke dalam rish
     # Escape tanda kutip ganda pada URI agar tidak bentrok dengan command shell
     safe_uri = final_uri.replace('"', '\\"')
-    
-    # --- PERUBAHAN UNTUK FLOAT/WINDOW MODE ---
-    # --windowingMode 5 : Memaksa mode Freeform (Float)
-    # --activity-multiple-task : Memastikan ini dianggap tugas baru (agar bisa banyak window)
-    # --activity-new-task : Wajib untuk start dari terminal
-    
-    cmd = f"rish -c 'am start --user 0 --windowingMode 5 --activity-multiple-task --activity-new-task -a android.intent.action.VIEW -d \"{safe_uri}\" {clean}'"
+    cmd = f"rish -c 'am start --user 0 -a android.intent.action.VIEW -d \"{safe_uri}\" {clean}'"
     
     os.system(f"{cmd} > /dev/null 2>&1")
 
