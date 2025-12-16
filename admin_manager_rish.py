@@ -6,6 +6,9 @@ import random
 import glob
 import urllib.request
 import re 
+# === TAMBAHAN UNTUK FIX ERROR RISH ===
+os.environ['RISH_APPLICATION_ID'] = 'com.termux'
+# =====================================
 
 # ================= KONFIGURASI DASAR =================
 BASE_PACKAGES = [
