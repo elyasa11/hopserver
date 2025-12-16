@@ -34,11 +34,17 @@ def force_close(pkg):
     clean = get_pkg_name(pkg)
     os.system(f"/system/bin/am force-stop {clean}")
 
-# [UPDATE V5.2] Logic Hybrid: Raw Link vs Deep Link
+def extract_vip_code(input_str):
+    if not input_str or input_str.strip() == "": return None
+    match_share = re.search(r'code=([a-zA-Z0-9\-]+)', input_str)
+    if match_share: return match_share.group(1)
+    match_old = re.search(r'privateServerLinkCode=([a-zA-Z0-9\-]+)', input_str)
+    if match_old: return match_old.group(1)
+    if "http" not in input_str and "roblox.com" not in input_str: return input_str.strip()
+    return input_str 
+
 def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
-    
-    # Ambil setting dari memori
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
@@ -47,36 +53,21 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
         print(f"❌ Error: Tidak ada Place ID untuk {clean}")
         return
 
-    # TENTUKAN TIPE LINK YANG AKAN DIPAKAI
     final_uri = ""
-    is_vip = False
-
-    # KASUS A: User memasukkan Link HTTPS (Share Link / VIP Link)
-    # Kita pakai link mentah-mentah, biarkan Roblox App yang mikir.
+    # LOGIC LINK
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
-        is_vip = True
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
-
-    # KASUS B: User memasukkan KODE SAJA (Format Lama)
-    # Kita harus rakit linknya manual
     elif vip_link_input and vip_link_input.strip() != "":
         final_uri = f"roblox://placeId={specific_place_id}&privateServerLinkCode={vip_link_input.strip()}"
-        is_vip = True
         print(f"    -> Target: 🔒 Private Server (Code Injection)")
-
-    # KASUS C: Public Server (Job ID atau Random)
     elif job_id:
         final_uri = f"roblox://placeId={specific_place_id}&gameId={job_id}"
         print(f"    -> Target: 🌍 Public Server {job_id[:8]}...")
-    
-    # KASUS D: Random Public
     else:
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Random Server")
 
-    # EKSEKUSI
-    # Penting: Kita panggil package spesifik (clean) agar link dibuka oleh Roblox yang benar
     cmd = f"/system/bin/am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
 
@@ -89,7 +80,7 @@ def is_app_running(pkg):
     except:
         return False
 
-# ================= API ROBLOX =================
+# ================= API & FILE OPS =================
 
 def get_public_servers(place_id):
     if not place_id: return []
@@ -108,8 +99,6 @@ def get_public_servers(place_id):
     except Exception as e:
         print(f"[API ERROR] {e}")
         return []
-
-# ================= FILE OPERATIONS =================
 
 def get_status_files():
     files = run_root(f"ls {WORKSPACE_PATH}/status_*.json")
@@ -138,7 +127,7 @@ def inject_restart_status(filepath, data):
     data['timestamp'] = data.get('timestamp', 0) + 1 
     write_json_root(filepath, data)
 
-# ================= INPUT MENU =================
+# ================= SETUP =================
 
 def setup_configuration():
     print("\n--- PENGATURAN MODE GAME ---")
@@ -150,10 +139,8 @@ def setup_configuration():
         pid = input("Masukkan Place ID: ").strip()
         print("Masukkan Link Private Server (Full Link):")
         vip = input("(Kosongkan jika Public): ").strip()
-        
         for pkg in BASE_PACKAGES:
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
-            
     else:
         for pkg in BASE_PACKAGES:
             clean = get_pkg_name(pkg)
@@ -164,19 +151,17 @@ def setup_configuration():
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
     print("\n--- PENGATURAN AUTO RESTART ---")
-    restart_input = input("Restart semua akun setiap berapa MENIT? (0 = Matikan): ").strip()
     try:
-        restart_minutes = int(restart_input)
+        restart_minutes = int(input("Restart setiap berapa MENIT? (0 = Mati): ").strip())
         restart_seconds = restart_minutes * 60
     except:
         restart_seconds = 0
-        
     return restart_seconds
 
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER V5.2: RAW LINK SUPPORT ===")
+    print("=== ROBLOX MANAGER V5.3: FINAL SYNC ===")
     
     RESTART_INTERVAL = setup_configuration()
     LAST_GLOBAL_RESTART = time.time()
@@ -197,12 +182,10 @@ def main():
         print(f"\n--> Meluncurkan: {clean_pkg}")
         
         target_job_id = None
-        # Hanya cari server public jika VIP KOSONG
         if not vip or vip.strip() == "":
             if pid not in server_pools:
                 server_pools[pid] = get_public_servers(pid)
                 random.shuffle(server_pools[pid])
-            
             if len(server_pools[pid]) > 0:
                 target_job_id = server_pools[pid].pop(0)
         
@@ -213,7 +196,6 @@ def main():
         
         force_close(pkg)
         time.sleep(1)
-        # Launch Game sekarang akan menangani link raw dengan benar
         launch_game(pkg, job_id=target_job_id) 
         
         print("    Mencari file milik dia...", end="", flush=True)
@@ -224,7 +206,6 @@ def main():
             files_now = get_status_files()
             for f in files_now:
                 if f in claimed_files: continue 
-                
                 data = read_json_root(f)
                 if data and 'timestamp' in data:
                     ts = float(data['timestamp'])
@@ -248,16 +229,14 @@ def main():
 
     print("\n" + "="*50)
     print(f"[PHASE 2] MONITORING AKTIF")
-    if RESTART_INTERVAL > 0:
-        print(f"⚠️  Auto-Restart Aktif: Setiap {int(RESTART_INTERVAL/60)} Menit")
     print("="*50)
 
     while True:
         now = time.time()
         
-        # === A. JADWAL RESTART ===
+        # === A. RESTART ===
         if RESTART_INTERVAL > 0 and (now - LAST_GLOBAL_RESTART > RESTART_INTERVAL):
-            print("\n⏰ WAKTUNYA JADWAL RESTART! MELUNCURKAN ULANG SEMUA...")
+            print("\n⏰ JADWAL RESTART! MELUNCURKAN ULANG...")
             for pkg in BASE_PACKAGES:
                 print(f"   -> Restarting {get_pkg_name(pkg)}...")
                 force_close(pkg)
@@ -266,11 +245,11 @@ def main():
                 if pkg in package_map:
                     package_map[pkg]['last_change_time'] = time.time()
             LAST_GLOBAL_RESTART = time.time()
-            print("✅ Restart Selesai. Kembali Monitoring.\n")
-            time.sleep(10) 
+            print("✅ Restart Selesai.\n")
+            time.sleep(10)
             continue 
 
-        # === B. LOOP MONITORING (ANTI-FREEZE) ===
+        # === B. ANTI-FREEZE ===
         for pkg in BASE_PACKAGES:
             if pkg not in package_map: continue
             
@@ -300,37 +279,4 @@ def main():
                 else:
                     stagnant_duration = now - info['last_change_time']
                     if stagnant_duration > FREEZE_THRESHOLD:
-                        print(f"\n[FREEZE] {info['user']} ({clean}) macet {int(stagnant_duration)}s!")
-                        inject_restart_status(fpath, data)
-                        print("         -> Restarting...")
-                        force_close(pkg)
-                        time.sleep(2)
-                        launch_game(pkg)
-                        info['last_change_time'] = now
-                        info['last_ts'] = current_file_ts + 1
-
-        # === C. LOOP TABRAKAN (COLLISION) ===
-        server_map = {}
-        all_files = get_status_files()
-        
-        for f in all_files:
-            d = read_json_root(f)
-            if d and 'jobId' in d:
-                jid = d['jobId']
-                if jid not in server_map: server_map[jid] = []
-                server_map[jid].append({'file': f, 'data': d, 'user': d.get('username')})
-        
-        for jid, sessions in server_map.items():
-            if len(sessions) > 1:
-                # Tabrakan di Public Server
-                for victim in sessions[1:]:
-                    inject_hop_signal(victim['file'], victim['data'])
-        
-        print(".", end="", flush=True)
-        time.sleep(5)
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nStop.")
+                        print(f"\
