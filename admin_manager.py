@@ -55,7 +55,7 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
 
     if not specific_place_id:
-        print(f"❌ Error: Tidak ada Place ID untuk {clean}")
+        print(f"ERROR: Tidak ada Place ID untuk {clean}")
         return
 
     final_uri = ""
@@ -63,19 +63,19 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         # Case A: Raw Link (Share Link)
         final_uri = vip_link_input.strip()
-        print(f"    -> Target: 🔗 Private Server (Direct Link)")
+        print("    -> Target: Private Server (Direct Link)")
     elif vip_link_input and vip_link_input.strip() != "":
         # Case B: Code Injection
         final_uri = f"roblox://placeId={specific_place_id}&privateServerLinkCode={vip_link_input.strip()}"
-        print(f"    -> Target: 🔒 Private Server (Code Injection)")
+        print("    -> Target: Private Server (Code Injection)")
     elif job_id:
         # Case C: Public Server Specific
         final_uri = f"roblox://placeId={specific_place_id}&gameId={job_id}"
-        print(f"    -> Target: 🌍 Public Server {job_id[:8]}...")
+        print(f"    -> Target: Public Server {job_id[:8]}...")
     else:
         # Case D: Random
         final_uri = f"roblox://placeId={specific_place_id}"
-        print(f"    -> Target: 🎲 Random Server")
+        print("    -> Target: Random Server")
 
     cmd = f"/system/bin/am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
@@ -154,9 +154,9 @@ def setup_configuration():
         for pkg in BASE_PACKAGES:
             clean = get_pkg_name(pkg)
             print(f"\nSetting untuk {clean}:")
-            pid = input(f"  - Place ID: ").strip()
-            print(f"  - Link Private Server (Enter jika Public):")
-            vip = input(f"    > ").strip()
+            pid = input("  - Place ID: ").strip()
+            print("  - Link Private Server (Enter jika Public):")
+            vip = input("    > ").strip()
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
     print("\n--- PENGATURAN AUTO RESTART ---")
@@ -172,7 +172,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER V5.3: FINAL SYNC ===")
+    print("=== ROBLOX MANAGER V5.4: FINAL STABLE ===")
     
     RESTART_INTERVAL = setup_configuration()
     LAST_GLOBAL_RESTART = time.time()
@@ -180,7 +180,7 @@ def main():
     package_map = {}
     claimed_files = set()
 
-    print(f"\n[PHASE 1] INITIAL LAUNCH")
+    print("\n[PHASE 1] INITIAL LAUNCH")
     
     server_pools = {} 
     
@@ -240,7 +240,7 @@ def main():
             print(" Timeout! (Gagal mapping)")
 
     print("\n" + "="*50)
-    print(f"[PHASE 2] MONITORING AKTIF")
+    print("[PHASE 2] MONITORING AKTIF")
     print("="*50)
 
     while True:
@@ -248,7 +248,7 @@ def main():
         
         # === A. RESTART ===
         if RESTART_INTERVAL > 0 and (now - LAST_GLOBAL_RESTART > RESTART_INTERVAL):
-            print("\n⏰ JADWAL RESTART! MELUNCURKAN ULANG...")
+            print("\n[ALARM] JADWAL RESTART! MELUNCURKAN ULANG...")
             for pkg in BASE_PACKAGES:
                 print(f"   -> Restarting {get_pkg_name(pkg)}...")
                 force_close(pkg)
@@ -257,7 +257,7 @@ def main():
                 if pkg in package_map:
                     package_map[pkg]['last_change_time'] = time.time()
             LAST_GLOBAL_RESTART = time.time()
-            print("✅ Restart Selesai.\n")
+            print("RESTART SELESAI.\n")
             time.sleep(10)
             continue 
 
@@ -291,7 +291,10 @@ def main():
                 else:
                     stagnant_duration = now - info['last_change_time']
                     if stagnant_duration > FREEZE_THRESHOLD:
-                        print(f"\n[FREEZE] {info['user']} ({clean}) macet {int(stagnant_duration)}s!")
+                        # Baris ini yang sebelumnya error, sekarang aman
+                        user_name = info.get('user', 'Unknown')
+                        print(f"\n[FREEZE] {user_name} ({clean}) macet {int(stagnant_duration)}s!")
+                        
                         inject_restart_status(fpath, data)
                         print("         -> Restarting...")
                         force_close(pkg)
