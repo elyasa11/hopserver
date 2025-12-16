@@ -1,8 +1,8 @@
 --[[
-    GRAND MASTER SCRIPT (FIXED LOOP)
+    GRAND MASTER SCRIPT (PRIVATE SERVER SUPPORT)
     Fitur:
     1. Auto Farm (Cheat)
-    2. Monitor & Hop (DENGAN RESET FLAG SEBELUM TELEPORT)
+    2. Monitor & Hop (Support VIP: Disable Hop if VIP)
     3. Potato Graphics
 ]]
 
@@ -15,7 +15,11 @@ local Workspace = game:GetService("Workspace")
 local myUser = Players.LocalPlayer.Name
 local myStatusFile = "status_" .. myUser .. ".json"
 
-print("--- SYSTEM START: 3 JALUR (ANTI-LOOP FIX) ---")
+-- Deteksi apakah ini Private Server?
+-- (Jika OwnerId ada dan bukan 0, biasanya VIP)
+local isPrivateServer = (game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0)
+
+print("--- SYSTEM START (VIP MODE: " .. tostring(isPrivateServer) .. ") ---")
 
 -- ================= JALUR 1: CHEAT =================
 task.spawn(function()
@@ -30,8 +34,10 @@ end)
 task.spawn(function()
     print(">>> [THREAD 2] Memuat Smart Monitor...")
 
-    -- Fungsi Blacklist & Smart Hop
+    -- Fungsi Blacklist (Non-Aktif jika di VIP)
     local function GetBlacklist()
+        if isPrivateServer then return {} end -- Jangan blacklist siapapun di VIP
+
         local blacklist = {}
         blacklist[game.JobId] = true 
         local files = listfiles("") 
@@ -50,6 +56,11 @@ task.spawn(function()
     end
 
     local function SmartServerHop()
+        if isPrivateServer then
+            print("🔒 Sedang di Private Server. Hop dimatikan.")
+            return 
+        end
+
         print("🕵️ Melakukan Smart Hop...")
         local BannedServers = GetBlacklist()
         local PlaceID = game.PlaceId
@@ -66,7 +77,6 @@ task.spawn(function()
                 if result.nextPageCursor then cursor = result.nextPageCursor end
                 for _, server in pairs(result.data) do
                     if not BannedServers[server.id] and server.playing < server.maxPlayers then
-                        print("✅ Target Aman: " .. server.id)
                         TPS:TeleportToPlaceInstance(PlaceID, server.id, Players.LocalPlayer)
                         found = true
                         break
@@ -76,7 +86,6 @@ task.spawn(function()
             if found then break end
             task.wait(0.2)
         end
-        
         if not found then TPS:Teleport(PlaceID, Players.LocalPlayer) end
     end
 
@@ -96,37 +105,46 @@ task.spawn(function()
         end
 
         if shouldHop then
-            print("⚠️ Perintah HOP Diterima! Mereset status dan pindah...")
-            
-            -- >>> PERBAIKAN PENTING DI SINI <<<
-            -- 1. HAPUS PERINTAH DULU (Reset Action jadi NONE)
-            local cleanData = {
-                username = myUser,
-                jobId = game.JobId,
-                placeId = game.PlaceId,
-                timestamp = os.time(),
-                action = "NONE", -- Matikan Trigger HOP
-                status = "HOPPING"
-            }
-            pcall(function() writefile(myStatusFile, Http:JSONEncode(cleanData)) end)
-            
-            -- 2. TUNGGU SEBENTAR (Biar file tersimpan)
-            task.wait(0.5) 
-            
-            -- 3. BARU PINDAH SERVER
-            SmartServerHop()
-            
-            -- Stop loop sementara agar tidak spam hop saat teleport process
-            task.wait(10) 
+            -- JIKA DI VIP SERVER, ABAIKAN PERINTAH HOP!
+            if isPrivateServer then
+                 print("⚠️ Perintah HOP diterima tapi diabaikan (VIP Server).")
+                 -- Tetap reset flag agar Python tidak spam
+                 local cleanData = {
+                    username = myUser,
+                    jobId = game.JobId,
+                    placeId = game.PlaceId,
+                    timestamp = os.time(),
+                    action = "NONE",
+                    status = "ACTIVE",
+                    isPrivate = true
+                }
+                pcall(function() writefile(myStatusFile, Http:JSONEncode(cleanData)) end)
+            else
+                print("⚠️ Perintah HOP Diterima! Pindah...")
+                local cleanData = {
+                    username = myUser,
+                    jobId = game.JobId,
+                    placeId = game.PlaceId,
+                    timestamp = os.time(),
+                    action = "NONE",
+                    status = "HOPPING",
+                    isPrivate = false
+                }
+                pcall(function() writefile(myStatusFile, Http:JSONEncode(cleanData)) end)
+                task.wait(0.5) 
+                SmartServerHop()
+                task.wait(10) 
+            end
         else
-            -- Laporan Rutin Normal
+            -- Laporan Rutin Normal (Kirim status VIP ke Python)
             local data = {
                 username = myUser,
                 jobId = game.JobId,
                 placeId = game.PlaceId,
                 timestamp = os.time(),
                 action = "NONE",
-                status = "ACTIVE"
+                status = "ACTIVE",
+                isPrivate = isPrivateServer -- Flag Penting!
             }
             pcall(function() writefile(myStatusFile, Http:JSONEncode(data)) end)
         end
