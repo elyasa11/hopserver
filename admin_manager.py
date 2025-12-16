@@ -9,7 +9,7 @@ import re
 
 # ================= KONFIGURASI DASAR =================
 BASE_PACKAGES = [
-    "com.roblox.client",
+    "com.roblox.clienx",
     "com.roblox.clienu",
     "com.roblox.clienv",
     "com.roblox.clienw"
