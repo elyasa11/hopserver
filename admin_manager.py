@@ -36,15 +36,20 @@ def force_close(pkg):
 
 def extract_vip_code(input_str):
     if not input_str or input_str.strip() == "": return None
+    # Cek format Share Link
     match_share = re.search(r'code=([a-zA-Z0-9\-]+)', input_str)
     if match_share: return match_share.group(1)
+    # Cek format Link VIP Lama
     match_old = re.search(r'privateServerLinkCode=([a-zA-Z0-9\-]+)', input_str)
     if match_old: return match_old.group(1)
+    # Cek Raw Code
     if "http" not in input_str and "roblox.com" not in input_str: return input_str.strip()
     return input_str 
 
 def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
+    
+    # Ambil setting dari memori jika parameter kosong
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
@@ -54,17 +59,21 @@ def launch_game(pkg, specific_place_id=None, job_id=None, vip_link_input=None):
         return
 
     final_uri = ""
-    # LOGIC LINK
+    # LOGIC LINK HYBRID
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
+        # Case A: Raw Link (Share Link)
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
     elif vip_link_input and vip_link_input.strip() != "":
+        # Case B: Code Injection
         final_uri = f"roblox://placeId={specific_place_id}&privateServerLinkCode={vip_link_input.strip()}"
         print(f"    -> Target: 🔒 Private Server (Code Injection)")
     elif job_id:
+        # Case C: Public Server Specific
         final_uri = f"roblox://placeId={specific_place_id}&gameId={job_id}"
         print(f"    -> Target: 🌍 Public Server {job_id[:8]}...")
     else:
+        # Case D: Random
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Random Server")
 
@@ -137,7 +146,7 @@ def setup_configuration():
 
     if mode == "1":
         pid = input("Masukkan Place ID: ").strip()
-        print("Masukkan Link Private Server (Full Link):")
+        print("Masukkan Link Private Server (Share Link / Code):")
         vip = input("(Kosongkan jika Public): ").strip()
         for pkg in BASE_PACKAGES:
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
@@ -152,7 +161,9 @@ def setup_configuration():
 
     print("\n--- PENGATURAN AUTO RESTART ---")
     try:
-        restart_minutes = int(input("Restart setiap berapa MENIT? (0 = Mati): ").strip())
+        inp = input("Restart setiap berapa MENIT? (0 = Mati): ").strip()
+        if not inp: inp = "0"
+        restart_minutes = int(inp)
         restart_seconds = restart_minutes * 60
     except:
         restart_seconds = 0
@@ -182,6 +193,7 @@ def main():
         print(f"\n--> Meluncurkan: {clean_pkg}")
         
         target_job_id = None
+        # Logic Public Server Pool
         if not vip or vip.strip() == "":
             if pid not in server_pools:
                 server_pools[pid] = get_public_servers(pid)
@@ -279,4 +291,44 @@ def main():
                 else:
                     stagnant_duration = now - info['last_change_time']
                     if stagnant_duration > FREEZE_THRESHOLD:
-                        print(f"\
+                        print(f"\n[FREEZE] {info['user']} ({clean}) macet {int(stagnant_duration)}s!")
+                        inject_restart_status(fpath, data)
+                        print("         -> Restarting...")
+                        force_close(pkg)
+                        time.sleep(2)
+                        launch_game(pkg)
+                        info['last_change_time'] = now
+                        info['last_ts'] = current_file_ts + 1
+
+        # === C. ANTI-TABRAKAN (SMART VIP CHECK) ===
+        server_map = {}
+        all_files = get_status_files()
+        
+        for f in all_files:
+            d = read_json_root(f)
+            if d and 'jobId' in d:
+                jid = d['jobId']
+                if jid not in server_map: server_map[jid] = []
+                server_map[jid].append({'file': f, 'data': d, 'user': d.get('username')})
+        
+        for jid, sessions in server_map.items():
+            if len(sessions) > 1:
+                # Cek apakah ini Private Server? (Dikirim oleh Lua)
+                sample_data = sessions[0]['data']
+                
+                if sample_data.get('isPrivate', False):
+                    # VIP Server: Biarkan saja, jangan usir.
+                    continue 
+                else:
+                    # Public Server: Usir yang dobel.
+                    for victim in sessions[1:]:
+                        inject_hop_signal(victim['file'], victim['data'])
+        
+        print(".", end="", flush=True)
+        time.sleep(5)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStop.")
