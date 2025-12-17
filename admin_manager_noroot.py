@@ -15,6 +15,9 @@ BASE_PACKAGES = [
 # Penyimpanan Setting
 PACKAGE_SETTINGS = {}
 
+# Daftar Paket yang AKTIF (Punya ID Game)
+ACTIVE_PACKAGES = []
+
 # ================= FUNGSI SISTEM (NON-ROOT) =================
 
 def get_pkg_name(pkg):
@@ -22,24 +25,10 @@ def get_pkg_name(pkg):
 
 def force_close(pkg):
     clean = get_pkg_name(pkg)
-    # Tanpa root, kita coba pakai perintah standar Android.
-    # Jika gagal (Permission Denied), script akan lanjut ke launch (Re-join).
     try:
         os.system(f"am force-stop {clean} > /dev/null 2>&1")
     except:
         pass
-
-def extract_vip_code(input_str):
-    if not input_str or input_str.strip() == "": return None
-    # Cek format Share Link
-    match_share = re.search(r'code=([a-zA-Z0-9\-]+)', input_str)
-    if match_share: return match_share.group(1)
-    # Cek format Link VIP Lama
-    match_old = re.search(r'privateServerLinkCode=([a-zA-Z0-9\-]+)', input_str)
-    if match_old: return match_old.group(1)
-    # Cek Raw Code
-    if "http" not in input_str and "roblox.com" not in input_str: return input_str.strip()
-    return input_str 
 
 def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
@@ -49,13 +38,13 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
 
+    # Filter Terakhir (Jaga-jaga)
     if not specific_place_id:
-        print(f"❌ Error: Tidak ada Place ID untuk {clean}")
         return
 
     final_uri = ""
     
-    # LOGIC LINK (Sama seperti V5.4)
+    # LOGIC LINK
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -66,7 +55,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    # EKSEKUSI (Tanpa 'su -c')
+    # EKSEKUSI
     print(f"    -> Meluncurkan {clean}...")
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
@@ -80,20 +69,28 @@ def setup_configuration():
     mode = input("Pilih Mode (1/2): ").strip()
 
     if mode == "1":
+        print("\n[MODE SERAGAM]")
         pid = input("Masukkan Place ID: ").strip()
         print("Masukkan Link Private Server (Share Link / Code):")
         vip = input("(Kosongkan jika Public): ").strip()
         
+        # Simpan ke semua, nanti di filter di main()
         for pkg in BASE_PACKAGES:
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
             
     else:
+        print("\n[MODE INDIVIDUAL]")
+        print("Tip: Kosongkan Place ID (Tekan Enter) jika ingin melewati akun ini.")
         for pkg in BASE_PACKAGES:
             clean = get_pkg_name(pkg)
             print(f"\nSetting untuk {clean}:")
             pid = input(f"  - Place ID: ").strip()
-            print(f"  - Link Private Server (Enter jika Public):")
-            vip = input(f"    > ").strip()
+            
+            vip = ""
+            if pid: # Hanya tanya VIP jika ID diisi
+                print(f"  - Link Private Server (Enter jika Public):")
+                vip = input(f"    > ").strip()
+            
             PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
     print("\n--- PENGATURAN AUTO RESTART ---")
@@ -110,51 +107,62 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (NO ROOT VERSION) ===")
+    print("=== ROBLOX MANAGER (SMART FILTER) ===")
     
     RESTART_INTERVAL = setup_configuration()
     
-    # 1. PELUNCURAN AWAL
-    print(f"\n[PHASE 1] INITIAL LAUNCH")
+    # 1. PELUNCURAN AWAL & FILTERISASI
+    print(f"\n[PHASE 1] INITIAL LAUNCH & FILTERING")
+    
     for pkg in BASE_PACKAGES:
         clean_pkg = get_pkg_name(pkg)
-        print(f"\n--> Memproses: {clean_pkg}")
+        settings = PACKAGE_SETTINGS.get(pkg)
         
-        # Coba tutup dulu (Best Effort)
+        # >>> LOGIKA FILTER: Cek apakah Place ID ada? <<<
+        if not settings or not settings['place_id']:
+            print(f"\n⏩ SKIP: {clean_pkg} (ID Kosong / Tidak Diisi)")
+            continue # Lewati loop ini, jangan launch
+        
+        # Jika lolos filter, masukkan ke daftar AKTIF
+        ACTIVE_PACKAGES.append(pkg)
+        
+        print(f"\n--> Memproses: {clean_pkg}")
         force_close(pkg)
         time.sleep(1)
         launch_game(pkg)
         
     print("\n" + "="*50)
-    print(f"✅ SEMUA AKUN DILUNCURKAN")
+    print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
+    
+    if len(ACTIVE_PACKAGES) == 0:
+        print("❌ Tidak ada akun yang dijalankan. Script berhenti.")
+        return
+
     if RESTART_INTERVAL > 0:
         print(f"⏳ Jadwal Restart Aktif: Setiap {int(RESTART_INTERVAL/60)} Menit")
     else:
         print("⏸️  Mode Standby (Tanpa Auto-Restart)")
     print("="*50)
 
-    # 2. LOOP WAKTU (TIMER)
+    # 2. LOOP WAKTU (Hanya untuk Paket Aktif)
     last_restart_time = time.time()
     
     while True:
         try:
-            time.sleep(10) # Cek waktu setiap 10 detik
+            time.sleep(10) 
             
             if RESTART_INTERVAL > 0:
                 elapsed = time.time() - last_restart_time
-                remaining = RESTART_INTERVAL - elapsed
                 
-                # Tampilkan countdown sederhana di log (opsional, biar gak sepi)
-                # print(f"\rSisa waktu restart: {int(remaining)} detik...", end="")
-
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTUNYA JADWAL RESTART! MELUNCURKAN ULANG...")
                     
-                    for pkg in BASE_PACKAGES:
+                    # Hanya loop paket yang ada di ACTIVE_PACKAGES
+                    for pkg in ACTIVE_PACKAGES:
                         print(f"   -> Re-launching {get_pkg_name(pkg)}...")
-                        force_close(pkg) # Coba matikan
-                        time.sleep(2)    # Beri jeda napas
-                        launch_game(pkg) # Buka lagi
+                        force_close(pkg) 
+                        time.sleep(2)    
+                        launch_game(pkg) 
                     
                     last_restart_time = time.time()
                     print(f"\n✅ Selesai. Menunggu siklus berikutnya ({int(RESTART_INTERVAL/60)} menit lagi).")
