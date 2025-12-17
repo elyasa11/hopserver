@@ -41,6 +41,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     final_uri = ""
     
+    # Logika Link (Sesuai File Anda)
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -54,6 +55,26 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     print(f"    -> Meluncurkan {clean}...")
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
+
+# === FUNGSI BARU: MENYAMAKAN METODE AWAL & RESTART ===
+def jalankan_siklus_login(pkg):
+    """
+    Fungsi ini menyalin persis logika yang ada di Phase 1 (Awal).
+    Kita panggil ini juga di Phase 2 (Restart) agar metodenya 100% sama.
+    """
+    clean_pkg = get_pkg_name(pkg)
+    print(f"\n--> Memproses: {clean_pkg}")
+    
+    # 1. Matikan (Sama seperti awal)
+    force_close(pkg)
+    time.sleep(1)
+    
+    # 2. Masuk Game (Sama seperti awal)
+    launch_game(pkg)
+    
+    # 3. Jeda Wajib (Sama seperti awal)
+    print("⏳ Menunggu 25 detik agar stabil...")
+    time.sleep(25) 
 
 # ================= INPUT & SAVE MENU =================
 
@@ -78,7 +99,6 @@ def save_current_config(restart_time):
 def setup_configuration():
     global PACKAGE_SETTINGS
     
-    # 1. LOGIKA LOAD DATA AKUN (ID GAME & LINK)
     saved_data = load_last_config()
     loaded_packages = False
     
@@ -89,7 +109,6 @@ def setup_configuration():
             PACKAGE_SETTINGS = saved_data['packages']
             loaded_packages = True
 
-    # Jika tidak load file lama, minta input baru
     if not loaded_packages:
         print("\n--- PENGATURAN MODE GAME BARU ---")
         print("1. SATU GAME untuk SEMUA AKUN")
@@ -117,9 +136,8 @@ def setup_configuration():
                     vip = input(f"    > ").strip()
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
-    # 2. LOGIKA INPUT WAKTU (SELALU DITANYAKAN)
     print("\n" + "="*40)
-    print("🕒 PENGATURAN WAKTU AUTO-RESTART (RAM CLEAR)")
+    print("🕒 PENGATURAN WAKTU AUTO-RESTART")
     print("="*40)
     print("Berapa lama kamu ingin berada di dalam game sebelum restart?")
     print("Input '0' untuk mematikan fitur restart.")
@@ -139,39 +157,30 @@ def setup_configuration():
     except:
         restart_seconds = 0
     
-    # Simpan konfigurasi terbaru (Data Akun + Waktu Baru)
     save_current_config(restart_seconds)
-        
     return restart_seconds
 
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (FIXED INPUT & DELAY) ===")
+    print("=== ROBLOX MANAGER (IDENTICAL CYCLE) ===")
     
-    # Setup akan mengembalikan detik restart yang baru diinput
     RESTART_INTERVAL = setup_configuration()
     
-    # 1. PELUNCURAN AWAL
-    print(f"\n[PHASE 1] INITIAL LAUNCH")
+    # 1. PELUNCURAN AWAL (PHASE 1)
+    print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
     
     for pkg in BASE_PACKAGES:
-        clean_pkg = get_pkg_name(pkg)
         settings = PACKAGE_SETTINGS.get(pkg)
         
+        # Filter akun kosong
         if not settings or not settings['place_id']:
             continue 
         
         ACTIVE_PACKAGES.append(pkg)
         
-        print(f"\n--> Memproses: {clean_pkg}")
-        force_close(pkg)
-        time.sleep(1)
-        launch_game(pkg)
-        
-        # === JEDA 25 DETIK (Agar tidak lag saat buka banyak) ===
-        print("⏳ Menunggu 25 detik sebelum membuka package berikutnya...")
-        time.sleep(25) 
+        # >>> MENGGUNAKAN METODE SIKLUS (Sama persis untuk awal & restart) <<<
+        jalankan_siklus_login(pkg)
         
     print("\n" + "="*50)
     print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
@@ -185,29 +194,23 @@ def main():
         print("⏸️  Mode Standby (Tanpa Auto-Restart)")
     print("="*50)
 
-    # 2. LOOP AUTO RESTART
+    # 2. LOOP AUTO RESTART (PHASE 2)
     last_restart_time = time.time()
     
     while True:
         try:
-            time.sleep(10) # Cek waktu setiap 10 detik
+            time.sleep(10)
             
             if RESTART_INTERVAL > 0:
                 elapsed = time.time() - last_restart_time
                 
-                # Jika waktu habis, lakukan restart
                 if elapsed >= RESTART_INTERVAL:
-                    print("\n\n⏰ WAKTU HABIS! MELAKUKAN RESTART (CLEAR RAM)...")
+                    print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS ULANG...")
+                    print("   (Menjalankan metode yang sama persis dengan awal)")
                     
                     for pkg in ACTIVE_PACKAGES:
-                        print(f"   -> Re-launching {get_pkg_name(pkg)}...")
-                        force_close(pkg) 
-                        time.sleep(2)    
-                        launch_game(pkg)
-                        
-                        # === JEDA 25 DETIK SAAT RESTART JUGA ===
-                        print("⏳ Jeda 25 detik...")
-                        time.sleep(25) 
+                        # >>> MENGGUNAKAN FUNGSI YANG SAMA DENGAN PHASE 1 <<<
+                        jalankan_siklus_login(pkg)
                     
                     last_restart_time = time.time()
                     print(f"\n✅ Restart Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit lagi.")
