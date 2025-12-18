@@ -2,7 +2,6 @@ import os
 import time
 import subprocess
 import json
-import sys
 
 # ================= KONFIGURASI PAKET =================
 BASE_PACKAGES = [
@@ -16,32 +15,6 @@ BASE_PACKAGES = [
 PACKAGE_SETTINGS = {}
 ACTIVE_PACKAGES = []
 CONFIG_FILE = "config_manager.json"
-
-# ================= FUNGSI BANTUAN (FIX TERMUX) =================
-
-def input_wajib(prompt):
-    """
-    Fungsi ini memaksa user mengisi input.
-    Jika Termux nge-skip (input kosong), dia akan tanya lagi.
-    """
-    while True:
-        try:
-            data = input(prompt).strip()
-            if data: # Jika ada isinya, baru return
-                return data
-            # Jika kosong (kena skip), loop lagi
-        except EOFError:
-            pass
-
-def input_opsional(prompt):
-    """Untuk input yang boleh kosong (seperti Private Link)"""
-    try:
-        return input(prompt).strip()
-    except:
-        return ""
-
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
 
 # ================= FUNGSI SISTEM =================
 
@@ -83,19 +56,23 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
 
-# === FUNGSI SIKLUS (SAMA PERSIS AWAL & RESTART) ===
+# === FUNGSI BARU: MENYAMAKAN METODE AWAL & RESTART ===
 def jalankan_siklus_login(pkg):
+    """
+    Fungsi ini menyalin persis logika yang ada di Phase 1 (Awal).
+    Kita panggil ini juga di Phase 2 (Restart) agar metodenya 100% sama.
+    """
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. Matikan
+    # 1. Matikan (Sama seperti awal)
     force_close(pkg)
     time.sleep(1)
     
-    # 2. Masuk Game
+    # 2. Masuk Game (Sama seperti awal)
     launch_game(pkg)
     
-    # 3. Jeda Wajib
+    # 3. Jeda Wajib (Sama seperti awal)
     print("⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
@@ -107,7 +84,6 @@ def load_last_config():
             with open(CONFIG_FILE, 'r') as f:
                 return json.load(f)
         except:
-            print("⚠️ File config rusak, membuat baru...")
             return None
     return None
 
@@ -126,35 +102,24 @@ def setup_configuration():
     saved_data = load_last_config()
     loaded_packages = False
     
-    # === FIX: HAPUS BUFFER SEBELUM INPUT ===
-    try:
-        sys.stdin.flush()
-    except:
-        pass
-
     if saved_data:
         print(f"\n📂 Ditemukan data {len(saved_data.get('packages', {}))} akun tersimpan.")
-        # Pakai input_opsional agar kalau terskip dianggap 'n' (tidak)
-        pilih = input_opsional("Gunakan ID/Link game yang tersimpan? (y/n): ").lower()
+        pilih = input("Gunakan ID/Link game yang tersimpan? (y/n): ").lower().strip()
         if pilih == 'y':
             PACKAGE_SETTINGS = saved_data['packages']
             loaded_packages = True
-        else:
-            print("   -> Membuat pengaturan baru.")
 
     if not loaded_packages:
         print("\n--- PENGATURAN MODE GAME BARU ---")
         print("1. SATU GAME untuk SEMUA AKUN")
         print("2. BEDA GAME setiap AKUN")
-        
-        # Pakai input_wajib agar tidak bisa diskip
-        mode = input_wajib("Pilih Mode (1/2): ")
+        mode = input("Pilih Mode (1/2): ").strip()
 
         if mode == "1":
             print("\n[MODE SERAGAM]")
-            pid = input_wajib("Masukkan Place ID: ") # Wajib isi
+            pid = input("Masukkan Place ID: ").strip()
             print("Masukkan Link Private Server (Share Link / Code):")
-            vip = input_opsional("(Kosongkan jika Public): ") # Boleh kosong
+            vip = input("(Kosongkan jika Public): ").strip()
             
             for pkg in BASE_PACKAGES:
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
@@ -164,11 +129,11 @@ def setup_configuration():
             for pkg in BASE_PACKAGES:
                 clean = get_pkg_name(pkg)
                 print(f"\nSetting untuk {clean}:")
-                pid = input_wajib(f"  - Place ID: ") # Wajib isi
+                pid = input(f"  - Place ID: ").strip()
                 vip = ""
                 if pid:
                     print(f"  - Link Private Server (Enter jika Public):")
-                    vip = input_opsional(f"    > ") # Boleh kosong
+                    vip = input(f"    > ").strip()
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
     print("\n" + "="*40)
@@ -182,7 +147,7 @@ def setup_configuration():
         if saved_data and 'restart_seconds' in saved_data:
             default_menit = int(saved_data['restart_seconds'] / 60)
             
-        inp = input_opsional(f"Masukkan Menit (Enter untuk default {default_menit} mnt): ")
+        inp = input(f"Masukkan Menit (Enter untuk default {default_menit} mnt): ").strip()
         
         if inp == "":
             restart_seconds = default_menit * 60
@@ -198,8 +163,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    clear_screen()
-    print("=== ROBLOX MANAGER (ANTI-SKIP / TERMUX FIX) ===")
+    print("=== ROBLOX MANAGER (IDENTICAL CYCLE) ===")
     
     RESTART_INTERVAL = setup_configuration()
     
@@ -209,19 +173,19 @@ def main():
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
         
+        # Filter akun kosong
         if not settings or not settings['place_id']:
             continue 
         
         ACTIVE_PACKAGES.append(pkg)
         
-        # JALANKAN SIKLUS
+        # >>> MENGGUNAKAN METODE SIKLUS (Sama persis untuk awal & restart) <<<
         jalankan_siklus_login(pkg)
         
     print("\n" + "="*50)
     print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
     
     if len(ACTIVE_PACKAGES) == 0:
-        print("⚠️  Tidak ada akun yang di-setting. Coba hapus config_manager.json")
         return
 
     if RESTART_INTERVAL > 0:
@@ -245,6 +209,7 @@ def main():
                     print("   (Menjalankan metode yang sama persis dengan awal)")
                     
                     for pkg in ACTIVE_PACKAGES:
+                        # >>> MENGGUNAKAN FUNGSI YANG SAMA DENGAN PHASE 1 <<<
                         jalankan_siklus_login(pkg)
                     
                     last_restart_time = time.time()
