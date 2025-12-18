@@ -16,20 +16,14 @@ BASE_PACKAGES = [
 PACKAGE_SETTINGS = {}
 ACTIVE_PACKAGES = []
 CONFIG_FILE = "config_manager.json"
-ADB_ADDRESS = "localhost:9698" # Alamat dari SSH Tunnel kamu
+ADB_ADDRESS = "localhost:9698" # Alamat SSH Tunnel
 
 # ================= FUNGSI BANTUAN & ADB =================
-
-def adb_connect():
-    """Mencoba menghubungkan ke ADB secara otomatis"""
-    print(f"🔌 Menghubungkan ADB ke {ADB_ADDRESS}...")
-    os.system(f"adb connect {ADB_ADDRESS} > /dev/null 2>&1")
-    time.sleep(2)
 
 def run_adb_cmd(cmd):
     """
     Menjalankan perintah Android lewat ADB Shell.
-    Format: adb -s localhost:9698 shell [perintah]
+    Kita gunakan flag -s untuk memastikan perintah lari ke device yang benar.
     """
     full_cmd = f"adb -s {ADB_ADDRESS} shell {cmd}"
     os.system(f"{full_cmd} > /dev/null 2>&1")
@@ -54,7 +48,6 @@ def force_close(pkg):
     clean = get_pkg_name(pkg)
     try:
         # Perintah Force Stop lewat ADB
-        # Kita gunakan am force-stop untuk mematikan total
         run_adb_cmd(f"am force-stop {clean}")
     except:
         pass
@@ -87,17 +80,13 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     print(f"    -> 🚀 Meluncurkan {clean} via ADB...")
     
     # Perintah Launch lewat ADB
-    # --activity-clear-task memastikan tidak sekedar resume
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" --activity-clear-task {clean}"
     run_adb_cmd(cmd)
 
 # === FUNGSI SIKLUS (DIPAKAI DI AWAL & RESTART) ===
 def jalankan_siklus_login(pkg):
-    """
-    Fungsi Satu Pintu: Mematikan Paksa -> Menunggu -> Menyalakan.
-    Dipanggil saat Phase 1 (Awal) dan Phase 2 (Restart).
-    """
     settings = PACKAGE_SETTINGS.get(pkg)
+    # Cek ID kosong (Skip)
     if not settings or not settings['place_id']:
         return 
 
@@ -166,88 +155,3 @@ def setup_configuration():
         else:
             print("\n[MODE INDIVIDUAL]")
             for pkg in BASE_PACKAGES:
-                clean = get_pkg_name(pkg)
-                print(f"\nSetting untuk {clean}:")
-                pid = input_aman(f"  - Place ID (Enter utk Skip): ")
-                vip = ""
-                if pid: vip = input_aman(f"  - Link Private: ")
-                PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
-
-    print("\n--- WAKTU RESTART ---")
-    try:
-        def_menit = 0
-        if saved_data and 'restart_seconds' in saved_data:
-            def_menit = int(saved_data['restart_seconds'] / 60)
-        inp = input_aman(f"Restart tiap berapa menit? (Enter={def_menit}): ")
-        if inp == "": restart_seconds = def_menit * 60
-        else: restart_seconds = int(inp) * 60
-    except:
-        restart_seconds = 0
-    
-    save_current_config(restart_seconds)
-    return restart_seconds
-
-# ================= MAIN LOGIC =================
-
-def main():
-    print("=== ROBLOX MANAGER (ADB + FORCE STOP) ===")
-    
-    # 1. KONEKSI ADB DULU
-    adb_connect()
-    
-    # Cek apakah koneksi berhasil
-    check = os.system(f"adb -s {ADB_ADDRESS} shell echo 'connected' > /dev/null 2>&1")
-    if check != 0:
-        print("\n❌ GAGAL KONEK ADB!")
-        print(f"Pastikan kamu sudah menjalankan perintah SSH Tunnel:")
-        print("ssh -oHostKeyAlgorithms=+ssh-rsa ... -Nf")
-        return
-
-    RESTART_INTERVAL = setup_configuration()
-    
-    # 2. PELUNCURAN AWAL (PHASE 1)
-    print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
-    print("(Aplikasi akan dipaksa berhenti dulu sebelum dibuka)")
-    
-    for pkg in BASE_PACKAGES:
-        settings = PACKAGE_SETTINGS.get(pkg)
-        if not settings or not settings['place_id']: continue 
-        ACTIVE_PACKAGES.append(pkg)
-        
-        # Panggil fungsi siklus (Matikan -> Hidupkan)
-        jalankan_siklus_login(pkg)
-        
-    print(f"\n✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
-    if len(ACTIVE_PACKAGES) == 0: return
-
-    if RESTART_INTERVAL > 0:
-        print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
-    else:
-        print("⏸️  Tanpa Auto-Restart")
-    print("="*50)
-
-    # 3. LOOP RESTART (PHASE 2)
-    last_restart_time = time.time()
-    while True:
-        try:
-            time.sleep(10)
-            if RESTART_INTERVAL > 0:
-                elapsed = time.time() - last_restart_time
-                if elapsed >= RESTART_INTERVAL:
-                    print("\n\n⏰ WAKTU HABIS! MEMULAI RESTART...")
-                    print("   (Mematikan paksa semua aplikasi...)")
-                    
-                    for pkg in ACTIVE_PACKAGES:
-                        # Panggil fungsi siklus (Matikan -> Hidupkan)
-                        jalankan_siklus_login(pkg)
-                        
-                    last_restart_time = time.time()
-                    print(f"\n✅ Restart Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit lagi.")
-        except KeyboardInterrupt:
-            print("\n🛑 Stop.")
-            break
-        except Exception as e:
-            print(f"⚠️ Error: {e}")
-
-if __name__ == "__main__":
-    main()
