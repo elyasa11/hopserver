@@ -3,16 +3,14 @@ import time
 import sys
 import json
 
-# === IMPORT LIBRARY ADB NATIVE ===
-try:
-    from adb_shell.auth.keygen import keygen
-    from adb_shell.auth.sign_pythonrsa import PythonRSASigner
-    from adb_shell.handle.tcp_handle import TcpHandle
-    from adb_shell.transport.tcp_transport import TcpTransport
-except ImportError:
-    print("❌ Library belum terinstall!")
-    print("Ketik: pip install adb-shell[async] cryptography")
-    sys.exit(1)
+print("🚀 Memuat Library ADB...")
+
+# === PERUBAHAN DI SINI: TIDAK ADA LAGI TRY/EXCEPT ===
+# Kita langsung panggil library-nya karena Dokter bilang sudah OK.
+from adb_shell.auth.keygen import keygen
+from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+from adb_shell.handle.tcp_handle import TcpHandle
+from adb_shell.transport.tcp_transport import TcpTransport
 
 # ================= KONFIGURASI =================
 BASE_PACKAGES = [
@@ -29,7 +27,6 @@ PACKAGE_SETTINGS = {}
 # ================= BAGIAN ADB (PAIRING & CONNECT) =================
 
 def get_rsa_signer():
-    # Setup Kunci RSA (Agar punya identitas)
     adbkey = 'adbkey'
     if not os.path.exists(adbkey):
         print("🔑 Membuat kunci identitas baru...")
@@ -42,34 +39,30 @@ def get_rsa_signer():
 def menu_koneksi():
     global ADB_DEVICE
     print("\n--- MENU KONEKSI ADB (PYTHON) ---")
-    print("1. PAIRING BARU (Lakukan ini jika 'Protocol Fault' di terminal)")
-    print("2. LANGSUNG CONNECT (Jika sudah pernah pairing)")
+    print("1. PAIRING BARU (Wajib untuk pertama kali)")
+    print("2. LANGSUNG CONNECT (Jika IP Connect sudah ada)")
     pilihan = input("Pilih menu (1/2): ").strip()
 
     signer = get_rsa_signer()
 
     if pilihan == "1":
-        # === LOGIKA PAIRING VIA PYTHON ===
         print("\n[MODE PAIRING]")
         print("Buka Developer Options -> Wireless Debugging -> Pair with code")
-        target = input("Masukkan IP:PORT (yang muncul di popup pairing): ").strip()
+        target = input("Masukkan IP:PORT (dari popup pairing): ").strip()
         code = input("Masukkan Kode 6 Digit: ").strip()
         
         try:
             ip, port = target.split(":")
-            # Koneksi khusus ke Port Pairing
             transport = TcpTransport(ip, int(port))
-            # Kirim sinyal pairing
             print("⏳ Mengirim kode pairing...")
             transport.connect()
             success = transport.pair(code)
             transport.close()
             
             if success:
-                print("✅ PAIRING SUKSES! Identitas Termux sudah diterima.")
-                print("Sekarang lanjut ke menu Connect...")
-                # Lanjut otomatis ke connect (tapi butuh port baru)
-                pilihan = "2" 
+                print("✅ PAIRING SUKSES!")
+                print("Sekarang kita lanjut connect ke Port Utama...")
+                # Lanjut ke logika connect di bawah
             else:
                 print("❌ Pairing Gagal (Salah kode/IP).")
                 sys.exit(1)
@@ -77,22 +70,21 @@ def menu_koneksi():
             print(f"❌ Error Pairing: {e}")
             sys.exit(1)
 
-    if pilihan == "2":
-        # === LOGIKA CONNECT BIASA ===
-        print("\n[MODE CONNECT]")
-        print("Lihat menu depan Wireless Debugging (IP & Port berubah).")
-        target = input("Masukkan IP:PORT (yang di halaman depan): ").strip()
+    # === LOGIKA CONNECT ===
+    print("\n[MODE CONNECT]")
+    print("Lihat menu depan Wireless Debugging (IP & Port berubah).")
+    target = input("Masukkan IP:PORT (dari halaman depan): ").strip()
+    
+    try:
+        if not target: target = "127.0.0.1:5555"
+        ip, port = target.split(":")
         
-        try:
-            if not target: target = "127.0.0.1:5555"
-            ip, port = target.split(":")
-            
-            ADB_DEVICE = TcpTransport(ip, int(port))
-            ADB_DEVICE.connect(rsa_keys=[signer], auth_timeout_s=5)
-            print("✅ TERHUBUNG KE ANDROID!")
-        except Exception as e:
-            print(f"❌ Gagal Connect: {e}")
-            sys.exit(1)
+        ADB_DEVICE = TcpTransport(ip, int(port))
+        ADB_DEVICE.connect(rsa_keys=[signer], auth_timeout_s=5)
+        print("✅ TERHUBUNG KE ANDROID!")
+    except Exception as e:
+        print(f"❌ Gagal Connect: {e}")
+        sys.exit(1)
 
 # ================= FUNGSI SISTEM GAME =================
 
@@ -130,7 +122,13 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 def jalankan_siklus(pkg):
     force_close(pkg)
     time.sleep(1)
-    launch_game(pkg, PACKAGE_SETTINGS[pkg]['place_id'], PACKAGE_SETTINGS[pkg]['vip_code'])
+    # Pastikan settings ada
+    if pkg in PACKAGE_SETTINGS:
+        launch_game(pkg, PACKAGE_SETTINGS[pkg]['place_id'], PACKAGE_SETTINGS[pkg]['vip_code'])
+    else:
+        print(f"⚠️ Skip {pkg} (Belum disetting)")
+        return
+        
     print("⏳ Tunggu 25 detik...")
     time.sleep(25)
 
@@ -143,22 +141,16 @@ def setup_game_config():
     vip = input("Link VIP (Enter jika kosong): ").strip()
     for pkg in BASE_PACKAGES:
         PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
-    return pid
 
 def main():
-    # 1. KONEKSI (Inilah solusi error Protocol Fault)
     menu_koneksi()
-    
-    # 2. SETUP
     setup_game_config()
     
-    # 3. EKSEKUSI
     print("\n[STARTING] Memulai semua akun...")
     for pkg in BASE_PACKAGES:
         jalankan_siklus(pkg)
         
-    print("\n✅ Semua terbuka. Script selesai (Mode Manual).")
-    # Jika butuh loop restart, bisa ditambahkan di sini seperti script sebelumnya.
+    print("\n✅ Selesai.")
 
 if __name__ == "__main__":
     try:
