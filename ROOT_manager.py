@@ -28,15 +28,18 @@ def run_root_cmd(cmd):
     os.system(f"{full_cmd} > /dev/null 2>&1")
 
 def input_aman(prompt):
-    """Membersihkan buffer input agar tidak loncat di Termux"""
+    """
+    VERSI SAFE: Tanpa sys.stdin.flush()
+    Langsung meminta input agar tidak menyebabkan STUCK/HANG di device tertentu.
+    """
     try:
-        sys.stdin.flush()
-    except:
-        pass
-    try:
+        # Kita hapus flush() karena bikin macet di cloudphone ini
         return input(prompt).strip()
     except EOFError:
         return ""
+    except KeyboardInterrupt:
+        print("\nAdmin Manager dihentikan paksa.")
+        sys.exit()
 
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
@@ -68,7 +71,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     final_uri = ""
     
-    # Logika Link (Sesuai script asli Anda)
+    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -82,7 +85,6 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     print(f"    -> 🚀 Meluncurkan {clean} (ROOT)...")
     
     # Perintah Launch via Root
-    # --activity-clear-task memastikan aplikasi reload dari awal
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" --activity-clear-task {clean}"
     run_root_cmd(cmd)
 
@@ -101,7 +103,6 @@ def jalankan_siklus_login(pkg):
     print(f"\n--> Memproses: {clean_pkg}")
     
     # 1. PAKSA BERHENTI (Fitur yang diminta)
-    # Ini menjamin aplikasi mati total sebelum dibuka
     print(f"    🛑 Mematikan paksa aplikasi...")
     force_close(pkg)
     
@@ -140,9 +141,6 @@ def setup_configuration():
     saved_data = load_last_config()
     loaded_packages = False
     
-    try: sys.stdin.flush() 
-    except: pass
-
     if saved_data:
         print(f"\n📂 Ditemukan data lama.")
         pilih = input_aman("Gunakan settingan lama? (y/n): ").lower()
@@ -188,7 +186,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (ROOT VERSION) ===")
+    print("=== ROBLOX MANAGER (ROOT - SAFE INPUT) ===")
     
     # Cek Root Sederhana
     try:
@@ -196,7 +194,6 @@ def main():
         if check != 0:
             print("⚠️  PERINGATAN: Akses Root tidak terdeteksi atau ditolak.")
             print("    Pastikan kamu sudah memberikan izin Root ke Termux.")
-            print("    (Script mungkin gagal mematikan aplikasi).")
             time.sleep(3)
         else:
             print("✅ Akses Root Terdeteksi.")
