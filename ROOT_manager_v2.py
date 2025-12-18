@@ -17,57 +17,41 @@ PACKAGE_SETTINGS = {}
 ACTIVE_PACKAGES = []
 CONFIG_FILE = "config_manager.json"
 
-# ================= FUNGSI BANTUAN & ROOT =================
+# ================= FUNGSI ROOT =================
 
-def run_root_cmd(cmd):
-    """Menjalankan perintah Root"""
+def run_as_root(cmd):
+    """Menjalankan perintah sebagai Root (su)"""
+    # Menggunakan su -c agar command dijalankan dengan akses root
     full_cmd = f"su -c '{cmd}'"
     os.system(f"{full_cmd} > /dev/null 2>&1")
-
-def input_aman(prompt):
-    """
-    METODE RAW INPUT (ANTI-STUCK)
-    Kita tidak menggunakan input() biasa karena bisa macet di cloudphone tertentu.
-    Kita print dulu prompt-nya, lalu baca baris mentah dari terminal.
-    """
-    try:
-        # Print pertanyaan dan paksa tampil ke layar (flush=True)
-        print(prompt, end=' ', flush=True)
-        # Baca input secara manual dari system standard input
-        data = sys.stdin.readline()
-        return data.strip()
-    except KeyboardInterrupt:
-        print("\n\nScript dihentikan paksa.")
-        sys.exit()
-    except:
-        return ""
 
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
-# ================= FUNGSI LOGIKA UTAMA =================
-
 def force_close(pkg):
     clean = get_pkg_name(pkg)
     try:
-        run_root_cmd(f"am force-stop {clean}")
-        run_root_cmd(f"killall {clean}")
+        # Menggunakan ROOT untuk mematikan paksa
+        # Kita pakai dua metode agar mati total
+        run_as_root(f"am force-stop {clean}")
+        run_as_root(f"killall {clean}")
     except:
         pass
 
 def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
     
+    # Ambil setting jika tidak dipassing langsung
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
 
     if not specific_place_id:
-        print(f"⚠️  {clean} di-skip (ID Game kosong).")
         return
 
     final_uri = ""
     
+    # Logika Link (Sesuai File Asli Anda)
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -80,24 +64,31 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     print(f"    -> 🚀 Meluncurkan {clean} (ROOT)...")
     
+    # Perintah Launch via Root
+    # --activity-clear-task memastikan aplikasi reload dari awal (Fresh)
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" --activity-clear-task {clean}"
-    run_root_cmd(cmd)
+    run_as_root(cmd)
 
-# === FUNGSI SIKLUS ===
+# === FUNGSI SIKLUS (Digunakan untuk Awal & Restart) ===
 def jalankan_siklus_login(pkg):
-    settings = PACKAGE_SETTINGS.get(pkg)
-    if not settings or not settings['place_id']:
-        return 
-
+    """
+    Fungsi ini menyalin persis logika yang ada di Phase 1.
+    Memastikan aplikasi DIMATIKAN DULU sebelum dibuka.
+    """
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    print(f"    🛑 Mematikan paksa aplikasi...")
+    # 1. Matikan Paksa (Fitur Baru)
+    print("    🛑 Mematikan paksa aplikasi...")
     force_close(pkg)
     
+    # Jeda agar RAM bersih dan siap
     time.sleep(2)
+    
+    # 2. Masuk Game (Via Root)
     launch_game(pkg)
     
+    # 3. Jeda Wajib
     print("    ⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
@@ -119,51 +110,66 @@ def save_current_config(restart_time):
     }
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
-    print("✅ Konfigurasi tersimpan.")
+    print("✅ Konfigurasi berhasil disimpan/diupdate.")
 
 def setup_configuration():
     global PACKAGE_SETTINGS
+    
     saved_data = load_last_config()
     loaded_packages = False
     
-    # KITA HAPUS SEMUA FLUSH YANG BIKIN ERROR
-    
     if saved_data:
-        print(f"\n📂 Ditemukan data lama.")
-        pilih = input_aman("Gunakan settingan lama? (y/n): ").lower()
+        print(f"\n📂 Ditemukan data {len(saved_data.get('packages', {}))} akun tersimpan.")
+        pilih = input("Gunakan ID/Link game yang tersimpan? (y/n): ").lower().strip()
         if pilih == 'y':
             PACKAGE_SETTINGS = saved_data['packages']
             loaded_packages = True
 
     if not loaded_packages:
-        print("\n--- PENGATURAN BARU ---")
-        mode = input_aman("1. Satu Game Semua Akun / 2. Beda-beda (Ketik 1/2):")
+        print("\n--- PENGATURAN MODE GAME BARU ---")
+        print("1. SATU GAME untuk SEMUA AKUN")
+        print("2. BEDA GAME setiap AKUN")
+        mode = input("Pilih Mode (1/2): ").strip()
 
         if mode == "1":
             print("\n[MODE SERAGAM]")
-            pid = input_aman("Masukkan Place ID:")
-            vip = ""
-            if pid: vip = input_aman("Link Private (Enter jika Public):")
+            pid = input("Masukkan Place ID: ").strip()
+            print("Masukkan Link Private Server (Share Link / Code):")
+            vip = input("(Kosongkan jika Public): ").strip()
+            
             for pkg in BASE_PACKAGES:
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
+                
         else:
             print("\n[MODE INDIVIDUAL]")
             for pkg in BASE_PACKAGES:
                 clean = get_pkg_name(pkg)
                 print(f"\nSetting untuk {clean}:")
-                pid = input_aman(f"  - Place ID (Enter utk Skip):")
+                pid = input(f"  - Place ID: ").strip()
                 vip = ""
-                if pid: vip = input_aman(f"  - Link Private:")
+                if pid:
+                    print(f"  - Link Private Server (Enter jika Public):")
+                    vip = input(f"    > ").strip()
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
-    print("\n--- WAKTU RESTART ---")
+    print("\n" + "="*40)
+    print("🕒 PENGATURAN WAKTU AUTO-RESTART")
+    print("="*40)
+    print("Berapa lama kamu ingin berada di dalam game sebelum restart?")
+    print("Input '0' untuk mematikan fitur restart.")
+    
     try:
-        def_menit = 0
+        default_menit = 0
         if saved_data and 'restart_seconds' in saved_data:
-            def_menit = int(saved_data['restart_seconds'] / 60)
-        inp = input_aman(f"Restart tiap berapa menit? (Enter={def_menit}):")
-        if inp == "": restart_seconds = def_menit * 60
-        else: restart_seconds = int(inp) * 60
+            default_menit = int(saved_data['restart_seconds'] / 60)
+            
+        inp = input(f"Masukkan Menit (Enter untuk default {default_menit} mnt): ").strip()
+        
+        if inp == "":
+            restart_seconds = default_menit * 60
+        else:
+            restart_seconds = int(inp) * 60
+            
     except:
         restart_seconds = 0
     
@@ -173,55 +179,64 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (ROOT - RAW INPUT MODE) ===")
+    print("=== ROBLOX MANAGER (ROOT VERSION) ===")
     
-    # Cek Root Sederhana
-    try:
-        check = os.system("su -c 'echo root_ok' > /dev/null 2>&1")
-        if check != 0:
-            print("⚠️  ROOT TIDAK TERDETEKSI!")
-            print("    Pastikan mengetik 'su' dulu di termux dan izinkan akses.")
-            time.sleep(3)
-        else:
-            print("✅ Root OK.")
-    except:
-        pass
+    # Cek Root Sederhana (Optional, hanya print info)
+    os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Gagal akses Root, pastikan izin diberikan.'")
 
     RESTART_INTERVAL = setup_configuration()
     
+    # 1. PELUNCURAN AWAL (PHASE 1)
     print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
+    print("(Aplikasi akan dipaksa berhenti dulu sebelum dibuka)")
     
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
+        
+        # Filter akun kosong
         if not settings or not settings['place_id']:
             continue 
-            
+        
         ACTIVE_PACKAGES.append(pkg)
+        
+        # >>> MENGGUNAKAN METODE SIKLUS (Force Stop -> Start) <<<
         jalankan_siklus_login(pkg)
         
-    print(f"\n✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
-    if len(ACTIVE_PACKAGES) == 0: return
+    print("\n" + "="*50)
+    print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
+    
+    if len(ACTIVE_PACKAGES) == 0:
+        return
 
     if RESTART_INTERVAL > 0:
-        print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
+        print(f"⏳ Jadwal Restart Aktif: Setiap {int(RESTART_INTERVAL/60)} Menit")
     else:
-        print("⏸️  Tanpa Auto-Restart")
+        print("⏸️  Mode Standby (Tanpa Auto-Restart)")
     print("="*50)
 
+    # 2. LOOP AUTO RESTART (PHASE 2)
     last_restart_time = time.time()
+    
     while True:
         try:
             time.sleep(10)
+            
             if RESTART_INTERVAL > 0:
                 elapsed = time.time() - last_restart_time
+                
                 if elapsed >= RESTART_INTERVAL:
-                    print("\n\n⏰ RESTARTING SIKLUS (ROOT)...")
+                    print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS ULANG...")
+                    print("   (Mematikan paksa aplikasi terlebih dahulu...)")
+                    
                     for pkg in ACTIVE_PACKAGES:
+                        # >>> MENGGUNAKAN FUNGSI YANG SAMA DENGAN PHASE 1 <<<
                         jalankan_siklus_login(pkg)
+                    
                     last_restart_time = time.time()
-                    print(f"\n✅ Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit.")
+                    print(f"\n✅ Restart Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit lagi.")
+                    
         except KeyboardInterrupt:
-            print("\n🛑 Stop.")
+            print("\n🛑 Script Dihentikan.")
             break
         except Exception as e:
             print(f"⚠️ Error: {e}")
