@@ -5,12 +5,17 @@ import json
 
 print("🚀 Memuat Library ADB...")
 
-# === PERUBAHAN DI SINI: TIDAK ADA LAGI TRY/EXCEPT ===
-# Kita langsung panggil library-nya karena Dokter bilang sudah OK.
-from adb_shell.auth.keygen import keygen
-from adb_shell.auth.sign_pythonrsa import PythonRSASigner
-from adb_shell.handle.tcp_handle import TcpHandle
-from adb_shell.transport.tcp_transport import TcpTransport
+# === PERBAIKAN DI SINI: MENGHAPUS IMPORT YANG ERROR ===
+# Kita hanya mengimport modul yang pasti ada di versi terbaru
+try:
+    from adb_shell.auth.keygen import keygen
+    from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+    # HAPUS BARIS: from adb_shell.handle.tcp_handle import TcpHandle (Ini biang keroknya)
+    from adb_shell.transport.tcp_transport import TcpTransport
+except ImportError as e:
+    print(f"❌ Error Import: {e}")
+    print("Pastikan library terinstall: pip install adb-shell[async] cryptography")
+    sys.exit(1)
 
 # ================= KONFIGURASI =================
 BASE_PACKAGES = [
@@ -27,6 +32,7 @@ PACKAGE_SETTINGS = {}
 # ================= BAGIAN ADB (PAIRING & CONNECT) =================
 
 def get_rsa_signer():
+    # Setup Kunci RSA agar punya identitas
     adbkey = 'adbkey'
     if not os.path.exists(adbkey):
         print("🔑 Membuat kunci identitas baru...")
@@ -39,8 +45,8 @@ def get_rsa_signer():
 def menu_koneksi():
     global ADB_DEVICE
     print("\n--- MENU KONEKSI ADB (PYTHON) ---")
-    print("1. PAIRING BARU (Wajib untuk pertama kali)")
-    print("2. LANGSUNG CONNECT (Jika IP Connect sudah ada)")
+    print("1. PAIRING BARU (Wajib untuk pertama kali/jika ganti IP)")
+    print("2. LANGSUNG CONNECT (Jika sudah pairing)")
     pilihan = input("Pilih menu (1/2): ").strip()
 
     signer = get_rsa_signer()
@@ -52,8 +58,14 @@ def menu_koneksi():
         code = input("Masukkan Kode 6 Digit: ").strip()
         
         try:
+            if ":" not in target:
+                print("❌ Format salah! Harusnya IP:PORT (Contoh: 127.0.0.1:44555)")
+                sys.exit(1)
+                
             ip, port = target.split(":")
+            # Koneksi khusus ke Port Pairing
             transport = TcpTransport(ip, int(port))
+            
             print("⏳ Mengirim kode pairing...")
             transport.connect()
             success = transport.pair(code)
@@ -61,8 +73,7 @@ def menu_koneksi():
             
             if success:
                 print("✅ PAIRING SUKSES!")
-                print("Sekarang kita lanjut connect ke Port Utama...")
-                # Lanjut ke logika connect di bawah
+                print("Sekarang lanjut ke menu Connect...")
             else:
                 print("❌ Pairing Gagal (Salah kode/IP).")
                 sys.exit(1)
@@ -79,19 +90,23 @@ def menu_koneksi():
         if not target: target = "127.0.0.1:5555"
         ip, port = target.split(":")
         
+        # Inisialisasi Transport (Pengganti Handle)
         ADB_DEVICE = TcpTransport(ip, int(port))
         ADB_DEVICE.connect(rsa_keys=[signer], auth_timeout_s=5)
         print("✅ TERHUBUNG KE ANDROID!")
     except Exception as e:
         print(f"❌ Gagal Connect: {e}")
+        print("Tips: Pastikan Pairing sudah sukses & IP Port benar.")
         sys.exit(1)
 
 # ================= FUNGSI SISTEM GAME =================
 
 def adb_shell(command):
     try:
+        # Mengirim perintah shell lewat jaringan
         return ADB_DEVICE.shell(command)
-    except:
+    except Exception as e:
+        print(f"⚠️ Gagal kirim perintah: {e}")
         return ""
 
 def get_pkg_name(pkg):
@@ -122,7 +137,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 def jalankan_siklus(pkg):
     force_close(pkg)
     time.sleep(1)
-    # Pastikan settings ada
+    
     if pkg in PACKAGE_SETTINGS:
         launch_game(pkg, PACKAGE_SETTINGS[pkg]['place_id'], PACKAGE_SETTINGS[pkg]['vip_code'])
     else:
