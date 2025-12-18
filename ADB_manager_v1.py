@@ -130,28 +130,4 @@ def save_current_config(restart_time):
 def setup_configuration():
     global PACKAGE_SETTINGS
     saved_data = load_last_config()
-    loaded_packages = False
-    try: sys.stdin.flush() 
-    except: pass
-
-    if saved_data:
-        print(f"\n📂 Ditemukan data lama.")
-        pilih = input_aman("Gunakan settingan lama? (y/n): ").lower()
-        if pilih == 'y':
-            PACKAGE_SETTINGS = saved_data['packages']
-            loaded_packages = True
-
-    if not loaded_packages:
-        print("\n--- PENGATURAN BARU ---")
-        mode = input_aman("1. Satu Game Semua Akun / 2. Beda-beda: ")
-
-        if mode == "1":
-            print("\n[MODE SERAGAM]")
-            pid = input_aman("Masukkan Place ID: ")
-            vip = ""
-            if pid: vip = input_aman("Link Private (Enter jika Public): ")
-            for pkg in BASE_PACKAGES:
-                PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
-        else:
-            print("\n[MODE INDIVIDUAL]")
-            for pkg in BASE_PACKAGES:
+    loaded_packages =
