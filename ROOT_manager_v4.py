@@ -21,7 +21,6 @@ CONFIG_FILE = "config_manager.json"
 
 def run_as_root(cmd):
     """Menjalankan perintah sebagai Root (su)"""
-    # Menggunakan su -c agar command dijalankan dengan akses root
     full_cmd = f"su -c '{cmd}'"
     os.system(f"{full_cmd} > /dev/null 2>&1")
 
@@ -31,17 +30,16 @@ def get_pkg_name(pkg):
 def force_close(pkg):
     clean = get_pkg_name(pkg)
     try:
-        # Menggunakan ROOT untuk mematikan paksa
-        # Kita pakai dua metode agar mati total
+        # Kita hanya pakai force-stop agar lebih aman dan spesifik
         run_as_root(f"am force-stop {clean}")
-        run_as_root(f"killall {clean}")
+        # killall dihapus karena berpotensi membunuh package lain yg mirip namanya
     except:
         pass
 
 def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
     
-    # Ambil setting jika tidak dipassing langsung
+    # Ambil setting
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
@@ -51,7 +49,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     final_uri = ""
     
-    # Logika Link (Sesuai File Asli Anda)
+    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -64,31 +62,22 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     print(f"    -> 🚀 Meluncurkan {clean} (ROOT)...")
     
-    # Perintah Launch via Root
-    # --activity-clear-task memastikan aplikasi reload dari awal (Fresh)
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" --activity-clear-task {clean}"
     run_as_root(cmd)
 
-# === FUNGSI SIKLUS (Digunakan untuk Awal & Restart) ===
-def jalankan_siklus_login(pkg):
+# === FUNGSI SIKLUS (Hanya dipakai untuk peluncuran, bukan mematikan) ===
+def jalankan_peluncuran_saja(pkg):
     """
-    Fungsi ini menyalin persis logika yang ada di Phase 1.
-    Memastikan aplikasi DIMATIKAN DULU sebelum dibuka.
+    Fungsi ini HANYA menyalakan game. 
+    Proses mematikan dipisah agar tidak saling tabrak.
     """
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. Matikan Paksa (Fitur Baru)
-    print("    🛑 Mematikan paksa aplikasi...")
-    force_close(pkg)
-    
-    # Jeda agar RAM bersih dan siap
-    time.sleep(2)
-    
-    # 2. Masuk Game (Via Root)
+    # Langsung Launch (Karena sudah dimatikan massal sebelumnya)
     launch_game(pkg)
     
-    # 3. Jeda Wajib
+    # Jeda Wajib
     print("    ⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
@@ -110,7 +99,7 @@ def save_current_config(restart_time):
     }
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
-    print("✅ Konfigurasi berhasil disimpan/diupdate.")
+    print("✅ Konfigurasi berhasil disimpan.")
 
 def setup_configuration():
     global PACKAGE_SETTINGS
@@ -155,15 +144,13 @@ def setup_configuration():
     print("\n" + "="*40)
     print("🕒 PENGATURAN WAKTU AUTO-RESTART")
     print("="*40)
-    print("Berapa lama kamu ingin berada di dalam game sebelum restart?")
-    print("Input '0' untuk mematikan fitur restart.")
     
     try:
         default_menit = 0
         if saved_data and 'restart_seconds' in saved_data:
             default_menit = int(saved_data['restart_seconds'] / 60)
             
-        inp = input(f"Masukkan Menit (Enter untuk default {default_menit} mnt): ").strip()
+        inp = input(f"Restart tiap berapa menit? (Enter={default_menit} mnt): ").strip()
         
         if inp == "":
             restart_seconds = default_menit * 60
@@ -179,34 +166,36 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (ROOT VERSION) ===")
+    print("=== ROBLOX MANAGER (BATCH RESTART FIX) ===")
     
-    # Cek Root Sederhana (Optional, hanya print info)
-    os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Gagal akses Root, pastikan izin diberikan.'")
+    # Cek Root Info
+    os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Cek izin Root...'")
 
     RESTART_INTERVAL = setup_configuration()
     
     # 1. PELUNCURAN AWAL (PHASE 1)
     print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
-    print("(Aplikasi akan dipaksa berhenti dulu sebelum dibuka)")
     
+    # Filter Paket Aktif
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
-        
-        # Filter akun kosong
-        if not settings or not settings['place_id']:
-            continue 
-        
-        ACTIVE_PACKAGES.append(pkg)
-        
-        # >>> MENGGUNAKAN METODE SIKLUS (Force Stop -> Start) <<<
-        jalankan_siklus_login(pkg)
-        
-    print("\n" + "="*50)
-    print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
+        if settings and settings['place_id']:
+            ACTIVE_PACKAGES.append(pkg)
     
     if len(ACTIVE_PACKAGES) == 0:
+        print("❌ Tidak ada akun yang di-setting.")
         return
+
+    # Jalankan Awal (Satu persatu tidak masalah karena belum ada yang jalan)
+    for pkg in ACTIVE_PACKAGES:
+        # Matikan dulu biar fresh
+        force_close(pkg)
+        time.sleep(1)
+        # Jalankan
+        jalankan_peluncuran_saja(pkg)
+
+    print("\n" + "="*50)
+    print(f"✅ SELESAI. {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
 
     if RESTART_INTERVAL > 0:
         print(f"⏳ Jadwal Restart Aktif: Setiap {int(RESTART_INTERVAL/60)} Menit")
@@ -225,15 +214,26 @@ def main():
                 elapsed = time.time() - last_restart_time
                 
                 if elapsed >= RESTART_INTERVAL:
-                    print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS ULANG...")
-                    print("   (Mematikan paksa aplikasi terlebih dahulu...)")
+                    print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS RESTART MASSAL...")
+                    print("="*40)
                     
+                    # === LANGKAH 1: MATIKAN SEMUA DULU (BATCH KILL) ===
+                    print("🛑 TAHAP 1: Mematikan SEMUA akun serentak...")
                     for pkg in ACTIVE_PACKAGES:
-                        # >>> MENGGUNAKAN FUNGSI YANG SAMA DENGAN PHASE 1 <<<
-                        jalankan_siklus_login(pkg)
+                        print(f"   -> Kill {get_pkg_name(pkg)}")
+                        force_close(pkg)
+                    
+                    print("   (Menunggu 5 detik agar semua proses benar-benar bersih...)")
+                    time.sleep(5)
+                    
+                    # === LANGKAH 2: NYALAKAN SATU PER SATU ===
+                    print("\n🚀 TAHAP 2: Meluncurkan ulang satu per satu...")
+                    for pkg in ACTIVE_PACKAGES:
+                        # Fungsi ini hanya menyalakan, tidak mematikan lagi
+                        jalankan_peluncuran_saja(pkg)
                     
                     last_restart_time = time.time()
-                    print(f"\n✅ Restart Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit lagi.")
+                    print(f"\n✅ Restart Massal Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit lagi.")
                     
         except KeyboardInterrupt:
             print("\n🛑 Script Dihentikan.")
