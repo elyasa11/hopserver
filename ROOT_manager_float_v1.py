@@ -58,15 +58,15 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> 🚀 Meluncurkan {clean} (MODE FLOATING)...")
+    print(f"    -> 🚀 Meluncurkan {clean} (MODE FLOATING ID:5)...")
     
-    # === PERBAIKAN UTAMA DI SINI ===
-    # Menambahkan flag: --windowingMode freeform
-    # Ini memaksa Android membuka app dalam mode jendela kecil (Taskbar compatible)
+    # === PERBAIKAN DI SINI ===
+    # Menggunakan kode angka '5' untuk Freeform
+    # Urutan flag dirapikan agar tidak error
     
     cmd = (
         f"am start --user 0 "
-        f"--windowingMode freeform "  # <--- KUNCI AGAR TIDAK FULLSCREEN
+        f"--windowingMode 5 "  # <--- GANTI 'freeform' JADI '5'
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
         f"--activity-clear-task {clean}"
@@ -78,10 +78,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 def jalankan_peluncuran_saja(pkg):
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
-    
     launch_game(pkg)
-    
-    # Jeda standar
     print("    ⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
@@ -155,7 +152,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (FLOATING WINDOW FIX) ===")
+    print("=== ROBLOX MANAGER (FLOATING FIX V2) ===")
     os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Cek izin Root...'")
 
     RESTART_INTERVAL = setup_configuration()
@@ -178,7 +175,7 @@ def main():
         time.sleep(1)
         jalankan_peluncuran_saja(pkg)
 
-    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN (MODE FLOATING).")
+    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
 
     if RESTART_INTERVAL > 0:
         print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
