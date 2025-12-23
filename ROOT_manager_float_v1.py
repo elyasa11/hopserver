@@ -60,13 +60,10 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     print(f"    -> 🚀 Meluncurkan {clean} (MODE FLOATING ID:5)...")
     
-    # === PERBAIKAN DI SINI ===
-    # Menggunakan kode angka '5' untuk Freeform
-    # Urutan flag dirapikan agar tidak error
-    
+    # Flag --windowingMode 5 untuk Freeform/Floating
     cmd = (
         f"am start --user 0 "
-        f"--windowingMode 5 "  # <--- GANTI 'freeform' JADI '5'
+        f"--windowingMode 5 " 
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
         f"--activity-clear-task {clean}"
@@ -135,15 +132,25 @@ def setup_configuration():
                 if pid: vip = input(f"  - Link Private: ").strip()
                 PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
 
-    print("\n--- WAKTU RESTART ---")
+    print("\n" + "="*40)
+    print("🕒 PENGATURAN WAKTU AUTO-RESTART")
+    print("="*40)
+    
+    # === PERBAIKAN VARIABEL DI SINI ===
     try:
-        def_menit = 0
+        default_menit = 0  # Nama variabel diperbaiki
         if saved_data and 'restart_seconds' in saved_data:
-            def_menit = int(saved_data['restart_seconds'] / 60)
+            default_menit = int(saved_data['restart_seconds'] / 60)
+            
         inp = input(f"Restart tiap berapa menit? (Enter={default_menit} mnt): ").strip()
-        if inp == "": restart_seconds = default_menit * 60
-        else: restart_seconds = int(inp) * 60
-    except:
+        
+        if inp == "":
+            restart_seconds = default_menit * 60
+        else:
+            restart_seconds = int(inp) * 60
+            
+    except Exception as e:
+        print(f"⚠️ Error Input Waktu: {e}")
         restart_seconds = 0
     
     save_current_config(restart_seconds)
@@ -152,7 +159,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (FLOATING FIX V2) ===")
+    print("=== ROBLOX MANAGER (FLOATING + BATCH KILL + FIX INPUT) ===")
     os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Cek izin Root...'")
 
     RESTART_INTERVAL = setup_configuration()
@@ -175,7 +182,7 @@ def main():
         time.sleep(1)
         jalankan_peluncuran_saja(pkg)
 
-    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
+    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN (MODE FLOATING).")
 
     if RESTART_INTERVAL > 0:
         print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
@@ -195,13 +202,13 @@ def main():
                     print("\n\n⏰ WAKTU HABIS! RESTARTING...")
                     print("="*40)
                     
-                    # BATCH KILL
-                    print("🛑 TAHAP 1: Kill All...")
+                    # BATCH KILL (Mematikan Semua Dulu)
+                    print("🛑 TAHAP 1: Kill All (Agar tidak bentrok)...")
                     for pkg in ACTIVE_PACKAGES:
                         force_close(pkg)
                     time.sleep(5)
                     
-                    # RELAUNCH
+                    # RELAUNCH (Menyalakan Satu per Satu)
                     print("\n🚀 TAHAP 2: Relaunch Floating...")
                     for pkg in ACTIVE_PACKAGES:
                         jalankan_peluncuran_saja(pkg)
