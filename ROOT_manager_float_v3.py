@@ -58,17 +58,17 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> 🚀 Meluncurkan {clean} (ANDROID 10 FLOATING)...")
+    print(f"    -> 🚀 Meluncurkan {clean} (METODE STACK 5)...")
     
-    # === PERBAIKAN KHUSUS ANDROID 10 ===
-    # Kita tambahkan '--activity-new-task' dan '--activity-multiple-task'
-    # Ini memaksa Android membuat stack baru yang mematuhi windowingMode 5
+    # === PERBAIKAN KHUSUS ANDROID 10 (STACK METHOD) ===
+    # Kita HAPUS '--windowingMode 5' karena bikin crash di Android 10.
+    # Kita GANTI dengan '--stack 5' (Ini kode Freeform untuk Android 7-10).
     
     cmd = (
         f"am start --user 0 "
-        f"--windowingMode 5 "  # Kode Freeform
-        f"--activity-new-task " # Wajib untuk Android 10 Freeform
-        f"--activity-multiple-task " # Memaksa instance baru
+        f"--stack 5 "                  # <--- KUNCI FLOAT ANDROID 10
+        f"--activity-new-task "        # Buat task baru
+        f"--activity-multiple-task "   # Paksa isolasi
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
         f"--activity-clear-task {clean}"
@@ -166,7 +166,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (ANDROID 10 FIX) ===")
+    print("=== ROBLOX MANAGER (ANDROID 10 STACK FIX) ===")
     os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Cek izin Root...'")
 
     RESTART_INTERVAL = setup_configuration()
@@ -189,7 +189,7 @@ def main():
         time.sleep(1)
         jalankan_peluncuran_saja(pkg)
 
-    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN (MODE FLOATING).")
+    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
 
     if RESTART_INTERVAL > 0:
         print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
