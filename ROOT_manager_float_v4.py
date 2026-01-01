@@ -37,7 +37,6 @@ def force_close(pkg):
 def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
     
-    # Ambil setting
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
         specific_place_id = PACKAGE_SETTINGS[pkg]['place_id']
         vip_link_input = PACKAGE_SETTINGS[pkg]['vip_code']
@@ -47,7 +46,6 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     final_uri = ""
     
-    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -58,20 +56,19 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> 🚀 Meluncurkan {clean} (METODE STACK 5)...")
+    print(f"    -> 🚀 Meluncurkan {clean} (VIA TASKBAR)...")
     
-    # === PERBAIKAN KHUSUS ANDROID 10 (STACK METHOD) ===
-    # Kita HAPUS '--windowingMode 5' karena bikin crash di Android 10.
-    # Kita GANTI dengan '--stack 5' (Ini kode Freeform untuk Android 7-10).
+    # === PERBAIKAN METODE TASKBAR ===
+    # Kita HAPUS flag --windowingMode atau --stack yang bikin crash.
+    # Kita hanya pakai '--activity-new-task' agar Taskbar mendeteksi ini sebagai aplikasi baru.
     
     cmd = (
         f"am start --user 0 "
-        f"--stack 5 "                  # <--- KUNCI FLOAT ANDROID 10
-        f"--activity-new-task "        # Buat task baru
-        f"--activity-multiple-task "   # Paksa isolasi
+        f"--activity-new-task "        # Sinyal ke Taskbar: "Ini aplikasi baru!"
+        f"--activity-clear-task "      # Pastikan reset dari awal
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
-        f"--activity-clear-task {clean}"
+        f"{clean}"
     )
     
     run_as_root(cmd)
@@ -84,53 +81,42 @@ def jalankan_peluncuran_saja(pkg):
     print("    ⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
-# ================= INPUT & SAVE MENU =================
+# ================= SETUP MENU =================
 
 def load_last_config():
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            return None
+            with open(CONFIG_FILE, 'r') as f: return json.load(f)
+        except: return None
     return None
 
 def save_current_config(restart_time):
-    data = {
-        "restart_seconds": restart_time,
-        "packages": PACKAGE_SETTINGS
-    }
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-    print("✅ Konfigurasi berhasil disimpan.")
+    data = {"restart_seconds": restart_time, "packages": PACKAGE_SETTINGS}
+    with open(CONFIG_FILE, 'w') as f: json.dump(data, f, indent=4)
+    print("✅ Konfigurasi tersimpan.")
 
 def setup_configuration():
     global PACKAGE_SETTINGS
-    
     saved_data = load_last_config()
     loaded_packages = False
     
     if saved_data:
         print(f"\n📂 Ditemukan data lama.")
         try:
-            pilih = input("Gunakan settingan lama? (y/n): ").lower().strip()
-            if pilih == 'y':
+            if input("Gunakan settingan lama? (y/n): ").lower().strip() == 'y':
                 PACKAGE_SETTINGS = saved_data['packages']
                 loaded_packages = True
-        except:
-            pass
+        except: pass
 
     if not loaded_packages:
         print("\n--- PENGATURAN BARU ---")
         try:
             mode = input("1. Satu Game / 2. Beda Game: ").strip()
-
             if mode == "1":
                 print("\n[MODE SERAGAM]")
                 pid = input("Masukkan Place ID: ").strip()
                 vip = input("Link Private (Enter jika Public): ").strip()
-                for pkg in BASE_PACKAGES:
-                    PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
+                for pkg in BASE_PACKAGES: PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
             else:
                 print("\n[MODE INDIVIDUAL]")
                 for pkg in BASE_PACKAGES:
@@ -140,24 +126,16 @@ def setup_configuration():
                     vip = ""
                     if pid: vip = input(f"  - Link Private: ").strip()
                     PACKAGE_SETTINGS[pkg] = {'place_id': pid, 'vip_code': vip}
-        except:
-            pass
+        except: pass
 
     print("\n--- WAKTU RESTART ---")
     try:
         default_menit = 0
         if saved_data and 'restart_seconds' in saved_data:
             default_menit = int(saved_data['restart_seconds'] / 60)
-            
         inp = input(f"Restart tiap berapa menit? (Enter={default_menit} mnt): ").strip()
-        
-        if inp == "":
-            restart_seconds = default_menit * 60
-        else:
-            restart_seconds = int(inp) * 60
-            
-    except Exception as e:
-        print(f"⚠️ Menggunakan waktu default karena error input: {e}")
+        restart_seconds = (default_menit * 60) if inp == "" else (int(inp) * 60)
+    except:
         restart_seconds = 0
     
     save_current_config(restart_seconds)
@@ -166,40 +144,28 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (ANDROID 10 STACK FIX) ===")
-    os.system("su -c 'echo ✅ Akses Root OK' || echo '⚠️ Cek izin Root...'")
+    print("=== ROBLOX MANAGER (TASKBAR MODE) ===")
+    os.system("su -c 'echo ✅ Root OK' || echo '⚠️ Cek Root'")
 
     RESTART_INTERVAL = setup_configuration()
     
-    # 1. PELUNCURAN AWAL
     print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
-    
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
-        if settings and settings['place_id']:
-            ACTIVE_PACKAGES.append(pkg)
+        if settings and settings['place_id']: ACTIVE_PACKAGES.append(pkg)
     
-    if len(ACTIVE_PACKAGES) == 0:
-        print("❌ Tidak ada akun aktif.")
-        return
+    if not ACTIVE_PACKAGES: return
 
-    # Launch Awal
     for pkg in ACTIVE_PACKAGES:
         force_close(pkg)
         time.sleep(1)
         jalankan_peluncuran_saja(pkg)
 
     print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
+    if RESTART_INTERVAL > 0: print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
+    else: print("⏸️  Tanpa Auto-Restart")
 
-    if RESTART_INTERVAL > 0:
-        print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
-    else:
-        print("⏸️  Tanpa Auto-Restart")
-    print("="*50)
-
-    # 2. LOOP AUTO RESTART
     last_restart_time = time.time()
-    
     while True:
         try:
             time.sleep(10)
@@ -207,27 +173,15 @@ def main():
                 elapsed = time.time() - last_restart_time
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! RESTARTING...")
-                    print("="*40)
-                    
-                    # BATCH KILL
                     print("🛑 TAHAP 1: Kill All...")
-                    for pkg in ACTIVE_PACKAGES:
-                        force_close(pkg)
+                    for pkg in ACTIVE_PACKAGES: force_close(pkg)
                     time.sleep(5)
-                    
-                    # RELAUNCH
-                    print("\n🚀 TAHAP 2: Relaunch Floating...")
-                    for pkg in ACTIVE_PACKAGES:
-                        jalankan_peluncuran_saja(pkg)
-                    
+                    print("\n🚀 TAHAP 2: Relaunch (Taskbar)...")
+                    for pkg in ACTIVE_PACKAGES: jalankan_peluncuran_saja(pkg)
                     last_restart_time = time.time()
                     print(f"\n✅ Selesai. Tunggu {int(RESTART_INTERVAL/60)} menit.")
-                    
         except KeyboardInterrupt:
-            print("\n🛑 Stop.")
             break
-        except Exception as e:
-            print(f"⚠️ Error: {e}")
 
 if __name__ == "__main__":
     main()
