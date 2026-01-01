@@ -46,6 +46,7 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
     final_uri = ""
     
+    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
         print(f"    -> Target: 🔗 Private Server (Direct Link)")
@@ -56,16 +57,18 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> 🚀 Meluncurkan {clean} (VIA TASKBAR)...")
+    print(f"    -> 🚀 Meluncurkan {clean} (MODIFIKASI V1)...")
     
-    # === PERBAIKAN METODE TASKBAR ===
-    # Kita HAPUS flag --windowingMode atau --stack yang bikin crash.
-    # Kita hanya pakai '--activity-new-task' agar Taskbar mendeteksi ini sebagai aplikasi baru.
+    # === MODIFIKASI DARI V1 ===
+    # 1. Kita TETAP pakai '--windowingMode 5' karena ini yang bikin app mau terbuka di HP kamu.
+    # 2. Kita TAMBAH '--activity-new-task' dan '--activity-multiple-task' agar Taskbar mendeteksi ini jendela baru.
+    # 3. Kita HAPUS '--activity-clear-task' (karena sudah di-kill manual sebelumnya).
     
     cmd = (
         f"am start --user 0 "
-        f"--activity-new-task "        # Sinyal ke Taskbar: "Ini aplikasi baru!"
-        f"--activity-clear-task "      # Pastikan reset dari awal
+        f"--windowingMode 5 "           # Wajib ada (Base V1)
+        f"--activity-new-task "         # Pemicu Taskbar
+        f"--activity-multiple-task "    # Pemicu Instance Baru
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
         f"{clean}"
@@ -81,7 +84,7 @@ def jalankan_peluncuran_saja(pkg):
     print("    ⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
-# ================= SETUP MENU =================
+# ================= INPUT & SAVE MENU =================
 
 def load_last_config():
     if os.path.exists(CONFIG_FILE):
@@ -144,7 +147,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (TASKBAR MODE) ===")
+    print("=== ROBLOX MANAGER (V1 MODIFIED) ===")
     os.system("su -c 'echo ✅ Root OK' || echo '⚠️ Cek Root'")
 
     RESTART_INTERVAL = setup_configuration()
@@ -176,7 +179,7 @@ def main():
                     print("🛑 TAHAP 1: Kill All...")
                     for pkg in ACTIVE_PACKAGES: force_close(pkg)
                     time.sleep(5)
-                    print("\n🚀 TAHAP 2: Relaunch (Taskbar)...")
+                    print("\n🚀 TAHAP 2: Relaunch (V1 Mode)...")
                     for pkg in ACTIVE_PACKAGES: jalankan_peluncuran_saja(pkg)
                     last_restart_time = time.time()
                     print(f"\n✅ Selesai. Tunggu {int(RESTART_INTERVAL/60)} menit.")
