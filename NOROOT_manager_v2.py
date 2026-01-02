@@ -22,23 +22,25 @@ CONFIG_FILE = "config_manager.json"
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
-# FUNGSI FORCE CLOSE DIMATIKAN (Agar Floating Tetap Aman)
+# FUNGSI FORCE CLOSE DIMATIKAN
+# (Agar Taskbar Floating tidak ter-reset/hilang)
 def force_close(pkg):
     pass 
 
-def wake_up_app(pkg):
+def open_app_only(pkg):
     """
-    Menggunakan 'monkey' untuk mensimulasikan ketukan jari pada icon aplikasi.
-    Ini 100% ampuh membangunkan aplikasi yang 'tertidur' di background.
+    LANGKAH 1: Hanya membuka aplikasi Roblox ke Home Screen.
+    Tanpa perintah join game apapun.
     """
     clean = get_pkg_name(pkg)
-    # Perintah monkey: -p [package] 1 (artinya kirim 1 event sentuhan)
+    # Kita gunakan 'monkey' untuk mensimulasikan ketukan pada icon aplikasi.
+    # Ini cara paling murni untuk "Membuka Aplikasi" tanpa parameter aneh-aneh.
     cmd = f"monkey -p {clean} -c android.intent.category.LAUNCHER 1"
     os.system(f"su -c '{cmd}' > /dev/null 2>&1")
 
-def join_game_link(pkg, specific_place_id=None, vip_link_input=None):
+def join_game_intent(pkg, specific_place_id=None, vip_link_input=None):
     """
-    Mengirim sinyal Link Game ke aplikasi yang SUDAH BANGUN.
+    LANGKAH 2: Mengirim perintah masuk game (Join Server).
     """
     clean = get_pkg_name(pkg)
     
@@ -50,6 +52,7 @@ def join_game_link(pkg, specific_place_id=None, vip_link_input=None):
         return
 
     final_uri = ""
+    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
     elif vip_link_input and vip_link_input.strip() != "":
@@ -57,7 +60,9 @@ def join_game_link(pkg, specific_place_id=None, vip_link_input=None):
     else:
         final_uri = f"roblox://placeId={specific_place_id}"
 
-    # Flag Hot Reload: Clear Top & Single Top
+    # Flag Khusus Hot Reload:
+    # --activity-clear-top: Bersihkan tumpukan aktivitas lama
+    # --activity-single-top: Pakai jendela yang sudah ada (Floating tetap aman)
     cmd = (
         f"am start --user 0 "
         f"-a android.intent.action.VIEW "
@@ -69,23 +74,24 @@ def join_game_link(pkg, specific_place_id=None, vip_link_input=None):
     
     os.system(f"su -c '{cmd}' > /dev/null 2>&1")
 
-# === FUNGSI SIKLUS (MONKEY METHOD) ===
+# === FUNGSI SIKLUS (IDE KAMU: 2 KALI PELUNCURAN) ===
 def jalankan_siklus_login(pkg):
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. BANGUNKAN DULU (Pake Monkey)
-    print(f"    🐵 Monkey Tap: Membangunkan aplikasi...")
-    wake_up_app(pkg)
+    # 1. PELUNCURAN PERTAMA (Buka Apk Doang)
+    print(f"    📂 Langkah 1: Membuka Aplikasi (Home)...")
+    open_app_only(pkg)
     
-    # Beri waktu si Monkey bekerja & app muncul di layar
+    # 2. JEDA 5 DETIK (Sesuai Permintaan)
+    print(f"       (Menunggu 5 detik loading awal...)")
     time.sleep(5)
     
-    # 2. SUNTIKKAN LINK GAME
-    print(f"    🚀 Inject Link: Masuk ke server...")
-    join_game_link(pkg)
+    # 3. PELUNCURAN KEDUA (Masuk Game)
+    print(f"    🚀 Langkah 2: Masuk ke Server Game...")
+    join_game_intent(pkg)
     
-    # 3. Jeda Stabilisasi
+    # 4. Jeda Stabilisasi
     print("    ⏳ Menunggu 20 detik...")
     time.sleep(20) 
 
@@ -152,7 +158,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (MONKEY WAKE-UP FIX) ===")
+    print("=== ROBLOX MANAGER (2-STEP LAUNCH) ===")
     os.system("su -c 'echo ✅ Root OK' || echo '⚠️ Cek Root'")
     
     RESTART_INTERVAL = setup_configuration()
@@ -161,7 +167,6 @@ def main():
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
         if settings and settings['place_id']: ACTIVE_PACKAGES.append(pkg)
-        # Jalankan Siklus
         jalankan_siklus_login(pkg)
     
     if not ACTIVE_PACKAGES: return
@@ -180,7 +185,7 @@ def main():
                 elapsed = time.time() - last_restart_time
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! REFRESHING GAMES...")
-                    print("   (Menggunakan Monkey Tap + Hot Reload)")
+                    print("   (Melakukan 2-Step Launch...)")
                     
                     for pkg in ACTIVE_PACKAGES:
                         jalankan_siklus_login(pkg)
