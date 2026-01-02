@@ -25,7 +25,7 @@ def get_pkg_name(pkg):
 def minimize_screen():
     print("🏠 Menekan tombol Home (Minimize)...")
     os.system("input keyevent 3")
-    time.sleep(2) # Jeda sebentar agar animasi minimize selesai
+    time.sleep(5) # Jeda sebentar agar animasi minimize selesai
 
 def force_close(pkg):
     clean = get_pkg_name(pkg)
