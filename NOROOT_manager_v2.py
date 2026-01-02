@@ -29,13 +29,13 @@ def force_close(pkg):
 def open_app_only(pkg):
     """
     LANGKAH 1: Membuka aplikasi ke Home Screen (Menu Utama).
-    Kita ganti 'monkey' dengan 'am start' standar yang lebih kuat.
+    Menggunakan perintah 'am start' dengan ACTION_MAIN.
     """
     clean = get_pkg_name(pkg)
     
     # Intent: ACTION_MAIN + CATEGORY_LAUNCHER
-    # Ini adalah perintah native Android untuk "Buka Aplikasi dari Icon"
-    # Kita tambahkan flag '--activity-new-task' agar Taskbar merespon
+    # Ini perintah standar Android (sama seperti ketuk icon)
+    # Ditambah flag --activity-new-task agar Taskbar merespon
     cmd = (
         f"am start --user 0 "
         f"-a android.intent.action.MAIN "
@@ -68,7 +68,7 @@ def join_game_intent(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
 
     # Perintah Join Game (Hot Reload Mode)
-    # Menggunakan 'single-top' agar tidak membuka jendela baru, tapi memakai yang sudah ada
+    # Menggunakan 'single-top' agar memakai jendela yang sudah ada
     cmd = (
         f"am start --user 0 "
         f"-a android.intent.action.VIEW "
@@ -177,17 +177,4 @@ def main():
     
     if not ACTIVE_PACKAGES: return
 
-    print(f"\n✅ {len(ACTIVE_PACKAGES)} AKUN BERJALAN.")
-    if RESTART_INTERVAL > 0: print(f"⏳ Auto-Restart: {int(RESTART_INTERVAL/60)} Menit")
-    else: print("⏸️  Tanpa Auto-Restart")
-    print("="*50)
-
-    last_restart_time = time.time()
-    
-    while True:
-        try:
-            time.sleep(10)
-            if RESTART_INTERVAL > 0:
-                elapsed = time.time() - last_restart_time
-                if elapsed >= RESTART_INTERVAL:
-                    print("\n\n⏰ WAKTU HABIS! REFRESHING GAMES...")
+    print
