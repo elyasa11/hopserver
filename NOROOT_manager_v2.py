@@ -21,12 +21,6 @@ CONFIG_FILE = "config_manager.json"
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
-# [FITUR BARU] Fungsi Minimize ke Home tanpa Force Close
-def minimize_screen():
-    print("🏠 Menekan tombol Home (Minimize)...")
-    os.system("input keyevent 3")
-    time.sleep(5) # Jeda sebentar agar animasi minimize selesai
-
 def force_close(pkg):
     clean = get_pkg_name(pkg)
     try:
@@ -62,23 +56,32 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
 
-# === FUNGSI MENYAMAKAN METODE AWAL & RESTART ===
+# === FUNGSI UTAMA: METODE DOUBLE LAUNCH ===
 def jalankan_siklus_login(pkg):
     """
-    Fungsi ini menyalin persis logika yang ada di Phase 1 (Awal).
-    Kita panggil ini juga di Phase 2 (Restart) agar metodenya 100% sama.
+    Fungsi ini menjalankan logika:
+    Force Close -> Launch 1 -> Tunggu 5 Detik -> Launch 2 -> Tunggu Stabil
     """
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. Matikan (Sama seperti awal)
+    # 1. Matikan dulu
     force_close(pkg)
     time.sleep(1)
     
-    # 2. Masuk Game (Sama seperti awal)
+    # 2. Peluncuran PERTAMA
+    print("    🚀 (1/2) Mencoba membuka game...")
     launch_game(pkg)
     
-    # 3. Jeda Wajib (Sama seperti awal)
+    # 3. Jeda 5 Detik (Sesuai Request)
+    print("    ⏳ Jeda 5 detik sebelum pemicu ulang...")
+    time.sleep(5)
+    
+    # 4. Peluncuran KEDUA (Pemicu Paksa)
+    print("    🚀 (2/2) Memicu ulang agar tidak stuck...")
+    launch_game(pkg)
+    
+    # 5. Jeda Wajib Stabilisasi
     print("⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
@@ -169,15 +172,12 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (IDENTICAL CYCLE) ===")
+    print("=== ROBLOX MANAGER (DOUBLE LAUNCH) ===")
     
     RESTART_INTERVAL = setup_configuration()
     
     # 1. PELUNCURAN AWAL (PHASE 1)
     print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
-    
-    # ==> FITUR BARU: Minimize sebelum mulai loop pertama
-    minimize_screen()
     
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
@@ -188,7 +188,7 @@ def main():
         
         ACTIVE_PACKAGES.append(pkg)
         
-        # >>> MENGGUNAKAN METODE SIKLUS (Sama persis untuk awal & restart) <<<
+        # >>> MENJALANKAN METODE DOUBLE LAUNCH <<<
         jalankan_siklus_login(pkg)
         
     print("\n" + "="*50)
@@ -215,14 +215,10 @@ def main():
                 
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS ULANG...")
-                    
-                    # ==> FITUR BARU: Minimize sebelum mulai loop restart
-                    minimize_screen()
-                    
-                    print("   (Menjalankan metode yang sama persis dengan awal)")
+                    print("   (Menjalankan metode Double Launch)")
                     
                     for pkg in ACTIVE_PACKAGES:
-                        # >>> MENGGUNAKAN FUNGSI YANG SAMA DENGAN PHASE 1 <<<
+                        # >>> MENJALANKAN METODE DOUBLE LAUNCH <<<
                         jalankan_siklus_login(pkg)
                     
                     last_restart_time = time.time()
