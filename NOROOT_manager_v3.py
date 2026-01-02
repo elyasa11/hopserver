@@ -21,19 +21,18 @@ CONFIG_FILE = "config_manager.json"
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
+# [FITUR BARU] Fungsi Minimize ke Home tanpa Force Close
+def minimize_screen():
+    print("🏠 Menekan tombol Home (Minimize)...")
+    os.system("input keyevent 3")
+    time.sleep(2) # Jeda sebentar agar animasi minimize selesai
+
 def force_close(pkg):
     clean = get_pkg_name(pkg)
     try:
         os.system(f"am force-stop {clean} > /dev/null 2>&1")
     except:
         pass
-
-# [BARU] Fungsi untuk membuka aplikasi ke Home Screen saja
-def open_app_only(pkg):
-    clean = get_pkg_name(pkg)
-    # Perintah standar untuk membuka aplikasi layaknya mengetuk icon (Action Main + Category Launcher)
-    cmd = f"am start --user 0 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER {clean}"
-    os.system(f"{cmd} > /dev/null 2>&1")
 
 def launch_game(pkg, specific_place_id=None, vip_link_input=None):
     clean = get_pkg_name(pkg)
@@ -59,37 +58,28 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         final_uri = f"roblox://placeId={specific_place_id}"
         print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> Meluncurkan {clean} (Inject Link)...")
+    print(f"    -> Meluncurkan {clean}...")
     cmd = f"am start --user 0 -a android.intent.action.VIEW -d \"{final_uri}\" {clean}"
     os.system(f"{cmd} > /dev/null 2>&1")
 
-# === FUNGSI SIKLUS (DIMODIFIKASI: 2-STEP LAUNCH) ===
+# === FUNGSI MENYAMAKAN METODE AWAL & RESTART ===
 def jalankan_siklus_login(pkg):
+    """
+    Fungsi ini menyalin persis logika yang ada di Phase 1 (Awal).
+    Kita panggil ini juga di Phase 2 (Restart) agar metodenya 100% sama.
+    """
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. Matikan (Sesuai script asli)
+    # 1. Matikan (Sama seperti awal)
     force_close(pkg)
     time.sleep(1)
     
-    # [MODIFIKASI DIMULAI DARI SINI]
-    
-    # 2. LANGKAH PERTAMA: Buka APK Roblox saja (Tanpa Link)
-    print("    📂 Langkah 1: Membuka Menu Utama Roblox...")
-    open_app_only(pkg)
-    
-    # 3. JEDA 5 DETIK (Sesuai permintaan)
-    print("       (Menunggu 5 detik loading awal...)")
-    time.sleep(5)
-    
-    # 4. LANGKAH KEDUA: Masuk Game (Inject Link)
-    print("    🚀 Langkah 2: Masuk ke dalam Game...")
+    # 2. Masuk Game (Sama seperti awal)
     launch_game(pkg)
     
-    # [MODIFIKASI SELESAI]
-    
-    # 5. Jeda Wajib (Sama seperti awal)
-    print("    ⏳ Menunggu 25 detik agar stabil...")
+    # 3. Jeda Wajib (Sama seperti awal)
+    print("⏳ Menunggu 25 detik agar stabil...")
     time.sleep(25) 
 
 # ================= INPUT & SAVE MENU =================
@@ -179,12 +169,15 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (2-STEP LAUNCH VERSION) ===")
+    print("=== ROBLOX MANAGER (IDENTICAL CYCLE) ===")
     
     RESTART_INTERVAL = setup_configuration()
     
     # 1. PELUNCURAN AWAL (PHASE 1)
     print(f"\n[PHASE 1] PELUNCURAN PERTAMA")
+    
+    # ==> FITUR BARU: Minimize sebelum mulai loop pertama
+    minimize_screen()
     
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
@@ -222,6 +215,10 @@ def main():
                 
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! MEMULAI SIKLUS ULANG...")
+                    
+                    # ==> FITUR BARU: Minimize sebelum mulai loop restart
+                    minimize_screen()
+                    
                     print("   (Menjalankan metode yang sama persis dengan awal)")
                     
                     for pkg in ACTIVE_PACKAGES:
