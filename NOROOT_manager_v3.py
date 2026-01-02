@@ -2,6 +2,7 @@ import os
 import time
 import subprocess
 import json
+import sys
 
 # ================= KONFIGURASI PAKET =================
 BASE_PACKAGES = [
@@ -21,14 +22,24 @@ CONFIG_FILE = "config_manager.json"
 def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
-# KITA NONAKTIFKAN FUNGSI FORCE CLOSE
-# Agar jendela Floating Taskbar tidak hilang/reset
+# FUNGSI FORCE CLOSE DIMATIKAN (Agar Floating Tetap Aman)
 def force_close(pkg):
     pass 
-    # Sengaja dikosongkan. 
-    # Kita tidak mau mematikan process ID.
 
-def launch_game(pkg, specific_place_id=None, vip_link_input=None):
+def wake_up_app(pkg):
+    """
+    Menggunakan 'monkey' untuk mensimulasikan ketukan jari pada icon aplikasi.
+    Ini 100% ampuh membangunkan aplikasi yang 'tertidur' di background.
+    """
+    clean = get_pkg_name(pkg)
+    # Perintah monkey: -p [package] 1 (artinya kirim 1 event sentuhan)
+    cmd = f"monkey -p {clean} -c android.intent.category.LAUNCHER 1"
+    os.system(f"su -c '{cmd}' > /dev/null 2>&1")
+
+def join_game_link(pkg, specific_place_id=None, vip_link_input=None):
+    """
+    Mengirim sinyal Link Game ke aplikasi yang SUDAH BANGUN.
+    """
     clean = get_pkg_name(pkg)
     
     if not specific_place_id and pkg in PACKAGE_SETTINGS:
@@ -39,49 +50,44 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
         return
 
     final_uri = ""
-    
-    # Logika Link
     if vip_link_input and ("http" in vip_link_input or "roblox.com" in vip_link_input):
         final_uri = vip_link_input.strip()
-        print(f"    -> Target: 🔗 Private Server (Direct Link)")
     elif vip_link_input and vip_link_input.strip() != "":
         final_uri = f"roblox://placeId={specific_place_id}&privateServerLinkCode={vip_link_input.strip()}"
-        print(f"    -> Target: 🔒 Private Server (Code Injection)")
     else:
         final_uri = f"roblox://placeId={specific_place_id}"
-        print(f"    -> Target: 🎲 Public/Random Server")
 
-    print(f"    -> 🔄 Hot-Reloading {clean} (Keep Float)...")
-    
-    # === RAHASIA AGAR TIDAK PERLU FORCE STOP ===
-    # Kita gunakan flag '--activity-clear-top' dan '--activity-single-top'
-    # Ini memaksa game reload ke menu awal/join baru TANPA menutup jendela.
-    
+    # Flag Hot Reload: Clear Top & Single Top
     cmd = (
         f"am start --user 0 "
         f"-a android.intent.action.VIEW "
         f"-d \"{final_uri}\" "
-        f"--activity-clear-top "   # <--- Hapus aktivitas lama di dalam jendela
-        f"--activity-single-top "  # <--- Pakai jendela yang sudah ada (jangan buat baru)
+        f"--activity-clear-top "
+        f"--activity-single-top "
         f"{clean}"
     )
     
-    os.system(f"{cmd} > /dev/null 2>&1")
+    os.system(f"su -c '{cmd}' > /dev/null 2>&1")
 
-# === FUNGSI SIKLUS ===
+# === FUNGSI SIKLUS (MONKEY METHOD) ===
 def jalankan_siklus_login(pkg):
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
-    # 1. KITA HAPUS BAGIAN FORCE STOP
-    # force_close(pkg) <-- Dihapus agar tidak reset ke fullscreen
+    # 1. BANGUNKAN DULU (Pake Monkey)
+    print(f"    🐵 Monkey Tap: Membangunkan aplikasi...")
+    wake_up_app(pkg)
     
-    # 2. Langsung Timpa/Inject Game Baru
-    launch_game(pkg)
+    # Beri waktu si Monkey bekerja & app muncul di layar
+    time.sleep(5)
     
-    # 3. Jeda
-    print("⏳ Menunggu 25 detik agar stabil...")
-    time.sleep(25) 
+    # 2. SUNTIKKAN LINK GAME
+    print(f"    🚀 Inject Link: Masuk ke server...")
+    join_game_link(pkg)
+    
+    # 3. Jeda Stabilisasi
+    print("    ⏳ Menunggu 20 detik...")
+    time.sleep(20) 
 
 # ================= INPUT & SAVE MENU =================
 
@@ -146,7 +152,8 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (HOT RELOAD / NO KILL) ===")
+    print("=== ROBLOX MANAGER (MONKEY WAKE-UP FIX) ===")
+    os.system("su -c 'echo ✅ Root OK' || echo '⚠️ Cek Root'")
     
     RESTART_INTERVAL = setup_configuration()
     
@@ -154,7 +161,7 @@ def main():
     for pkg in BASE_PACKAGES:
         settings = PACKAGE_SETTINGS.get(pkg)
         if settings and settings['place_id']: ACTIVE_PACKAGES.append(pkg)
-        # Jalankan Hot Reload
+        # Jalankan Siklus
         jalankan_siklus_login(pkg)
     
     if not ACTIVE_PACKAGES: return
@@ -173,10 +180,9 @@ def main():
                 elapsed = time.time() - last_restart_time
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! REFRESHING GAMES...")
-                    print("   (Me-refresh game tanpa menutup jendela...)")
+                    print("   (Menggunakan Monkey Tap + Hot Reload)")
                     
                     for pkg in ACTIVE_PACKAGES:
-                        # Jalankan metode yang sama (Hot Reload)
                         jalankan_siklus_login(pkg)
                     
                     last_restart_time = time.time()
