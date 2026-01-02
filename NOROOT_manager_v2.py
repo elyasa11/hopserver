@@ -75,7 +75,7 @@ def jalankan_siklus_login(pkg):
     
     # 3. Jeda 5 Detik (Sesuai Request)
     print("    ⏳ Jeda 5 detik sebelum pemicu ulang...")
-    time.sleep(10)
+    time.sleep(5)
     
     # 4. Peluncuran KEDUA (Pemicu Paksa)
     print("    🚀 (2/2) Memicu ulang agar tidak stuck...")
