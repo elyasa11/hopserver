@@ -67,7 +67,7 @@ def jalankan_siklus_login(pkg):
     
     # 1. Matikan dulu
     force_close(pkg)
-    time.sleep(1)
+    time.sleep(5)
     
     # 2. Peluncuran PERTAMA
     print("    🚀 (1/2) Mencoba membuka game...")
