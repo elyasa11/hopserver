@@ -23,19 +23,26 @@ def get_pkg_name(pkg):
     return pkg.split('/')[0].strip()
 
 # FUNGSI FORCE CLOSE DIMATIKAN
-# (Agar Taskbar Floating tidak ter-reset/hilang)
 def force_close(pkg):
     pass 
 
 def open_app_only(pkg):
     """
-    LANGKAH 1: Hanya membuka aplikasi Roblox ke Home Screen.
-    Tanpa perintah join game apapun.
+    LANGKAH 1: Membuka aplikasi ke Home Screen (Menu Utama).
+    Kita ganti 'monkey' dengan 'am start' standar yang lebih kuat.
     """
     clean = get_pkg_name(pkg)
-    # Kita gunakan 'monkey' untuk mensimulasikan ketukan pada icon aplikasi.
-    # Ini cara paling murni untuk "Membuka Aplikasi" tanpa parameter aneh-aneh.
-    cmd = f"monkey -p {clean} -c android.intent.category.LAUNCHER 1"
+    
+    # Intent: ACTION_MAIN + CATEGORY_LAUNCHER
+    # Ini adalah perintah native Android untuk "Buka Aplikasi dari Icon"
+    # Kita tambahkan flag '--activity-new-task' agar Taskbar merespon
+    cmd = (
+        f"am start --user 0 "
+        f"-a android.intent.action.MAIN "
+        f"-c android.intent.category.LAUNCHER "
+        f"--activity-new-task "
+        f"{clean}"
+    )
     os.system(f"su -c '{cmd}' > /dev/null 2>&1")
 
 def join_game_intent(pkg, specific_place_id=None, vip_link_input=None):
@@ -60,9 +67,8 @@ def join_game_intent(pkg, specific_place_id=None, vip_link_input=None):
     else:
         final_uri = f"roblox://placeId={specific_place_id}"
 
-    # Flag Khusus Hot Reload:
-    # --activity-clear-top: Bersihkan tumpukan aktivitas lama
-    # --activity-single-top: Pakai jendela yang sudah ada (Floating tetap aman)
+    # Perintah Join Game (Hot Reload Mode)
+    # Menggunakan 'single-top' agar tidak membuka jendela baru, tapi memakai yang sudah ada
     cmd = (
         f"am start --user 0 "
         f"-a android.intent.action.VIEW "
@@ -74,17 +80,17 @@ def join_game_intent(pkg, specific_place_id=None, vip_link_input=None):
     
     os.system(f"su -c '{cmd}' > /dev/null 2>&1")
 
-# === FUNGSI SIKLUS (IDE KAMU: 2 KALI PELUNCURAN) ===
+# === FUNGSI SIKLUS (2 KALI PELUNCURAN) ===
 def jalankan_siklus_login(pkg):
     clean_pkg = get_pkg_name(pkg)
     print(f"\n--> Memproses: {clean_pkg}")
     
     # 1. PELUNCURAN PERTAMA (Buka Apk Doang)
-    print(f"    📂 Langkah 1: Membuka Aplikasi (Home)...")
+    print(f"    📂 Langkah 1: Membangunkan ke Home...")
     open_app_only(pkg)
     
-    # 2. JEDA 5 DETIK (Sesuai Permintaan)
-    print(f"       (Menunggu 5 detik loading awal...)")
+    # 2. JEDA 5 DETIK
+    print(f"       (Menunggu 5 detik...)")
     time.sleep(5)
     
     # 3. PELUNCURAN KEDUA (Masuk Game)
@@ -158,7 +164,7 @@ def setup_configuration():
 # ================= MAIN LOGIC =================
 
 def main():
-    print("=== ROBLOX MANAGER (2-STEP LAUNCH) ===")
+    print("=== ROBLOX MANAGER (2-STEP AM START) ===")
     os.system("su -c 'echo ✅ Root OK' || echo '⚠️ Cek Root'")
     
     RESTART_INTERVAL = setup_configuration()
@@ -185,19 +191,3 @@ def main():
                 elapsed = time.time() - last_restart_time
                 if elapsed >= RESTART_INTERVAL:
                     print("\n\n⏰ WAKTU HABIS! REFRESHING GAMES...")
-                    print("   (Melakukan 2-Step Launch...)")
-                    
-                    for pkg in ACTIVE_PACKAGES:
-                        jalankan_siklus_login(pkg)
-                    
-                    last_restart_time = time.time()
-                    print(f"\n✅ Refresh Selesai. Menunggu {int(RESTART_INTERVAL/60)} menit.")
-                    
-        except KeyboardInterrupt:
-            print("\n🛑 Script Dihentikan.")
-            break
-        except Exception as e:
-            print(f"⚠️ Error: {e}")
-
-if __name__ == "__main__":
-    main()
