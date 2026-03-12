@@ -70,16 +70,19 @@ def launch_game(pkg, specific_place_id=None, vip_link_input=None):
 
 # === FUNGSI BACA/TULIS STATUS (ANTI-TABRAKAN) ===
 def get_status_files():
-    # FIX: Tidak pakai wildcard (*) agar aman di semua tipe Android
-    output = run_root_output(f"ls {WORKSPACE_PATH}")
-    if "No such file" in output or "denied" in output.lower(): 
+    # Menggunakan 'find' karena terbukti berhasil di Android 13 kamu
+    output = run_root_output(f"find {WORKSPACE_PATH} -maxdepth 1 -name 'status_*.json' 2>/dev/null")
+    
+    if not output or "No such file" in output: 
         return []
     
     files = []
     for f in output.split('\n'):
         f = f.strip()
-        if f.startswith("status_") and f.endswith(".json"):
-            files.append(f"{WORKSPACE_PATH}/{f}")
+        # Perintah 'find' sudah mengembalikan full path, jadi kita tinggal filter
+        if f.endswith(".json"):
+            files.append(f)
+            
     return files
 
 def read_json_root(filepath):
