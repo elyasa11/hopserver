@@ -198,24 +198,26 @@ def main():
                 last_restart_time = time.time()
                 continue 
 
-            # B. LOGIKA ANTI-TABRAKAN
+           # === B. LOGIKA ANTI-TABRAKAN ===
             server_map = {}
             all_files = get_status_files()
             current_time = time.time()
             
-            # Visual Feedback untuk Debugging (Agar tahu script tidak macet)
             sys.stdout.write(f"\r[MONITOR] Membaca {len(all_files)} file status... ")
             sys.stdout.flush()
             
             for f in all_files:
                 d = read_json_root(f)
                 if d and 'jobId' in d and 'timestamp' in d:
+                    # FIX: Abaikan akun yang sedang dalam proses pindah server (loading)
+                    if d['jobId'] == "LEAVING_SERVER":
+                        continue
+                        
                     if (current_time - d.get('timestamp', 0)) < 180: 
                         jid = d['jobId']
                         if jid not in server_map: server_map[jid] = []
                         server_map[jid].append({'file': f, 'data': d, 'user': d.get('username', 'Unknown')})
             
-            # Cek Tabrakan Server
             tabrakan_ditemukan = False
             for jid, sessions in server_map.items():
                 if len(sessions) > 1:
@@ -223,9 +225,10 @@ def main():
                     if sample_data.get('isPrivate', False):
                         continue 
                     else:
-                        tabrakan_ditemukan = True
                         for victim in sessions[1:]:
+                            # FIX: Hanya jalankan jika Python belum mengirimkan perintah HOP
                             if victim['data'].get('action') != "HOP":
+                                tabrakan_ditemukan = True
                                 print(f"\n⚠️ [ANTI-TABRAKAN] {victim['user']} ada di server yang sama! Menyuntikkan perintah HOP...")
                                 inject_hop_signal(victim['file'], victim['data'])
             
