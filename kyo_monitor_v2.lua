@@ -26,7 +26,8 @@ task.spawn(function()
     print(">>> [THREAD 1] Memuat Script Cheat...")
     task.wait(2)
     pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Estevansit0/KJJK/refs/heads/main/PusarX-loader.lua"))()
+        script_key="yqAdvpTEGCuTUmfMBIREWQmkhumYsrQb";
+loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/a5a58eeb04e49c77c49e25ad33cf3b36.lua"))()
     end)
 end)
 
