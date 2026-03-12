@@ -87,8 +87,20 @@ task.spawn(function()
         -- B. EKSEKUSI PERINTAH ATAU UPDATE STATUS
         if pendingAction == "HOP" then
             print("⚠️ [THREAD 2] Menerima Perintah HOP dari Python! Memulai proses pindah server...")
+            
+            -- [FIX] Pamit ke Python agar tidak dianggap tabrakan lagi selama loading!
+            local leavingData = {
+                username = myUser,
+                jobId = "LEAVING_SERVER", 
+                placeId = game.PlaceId,
+                isPrivate = false,
+                timestamp = os.time(), 
+                action = "NONE", 
+                status = currentStatus
+            }
+            pcall(function() writefile(myStatusFile, Http:JSONEncode(leavingData)) end)
+
             ServerHop()
-            -- Beri jeda panjang agar script tidak spam baca/tulis saat proses loading pindah server
             task.wait(15) 
         else
             -- C. CEK VIP SERVER (Krusial untuk Anti-Tabrakan di Python)
@@ -99,14 +111,12 @@ task.spawn(function()
                 username = myUser,
                 jobId = game.JobId,
                 placeId = game.PlaceId,
-                isPrivate = isVip, -- Python sekarang bisa mendeteksi VIP server!
+                isPrivate = isVip, 
                 timestamp = os.time(), 
                 action = pendingAction, 
                 status = currentStatus
             }
-            pcall(function()
-                writefile(myStatusFile, Http:JSONEncode(data))
-            end)
+            pcall(function() writefile(myStatusFile, Http:JSONEncode(data)) end)
         end
     end
 end)
