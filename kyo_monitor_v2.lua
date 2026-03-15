@@ -26,7 +26,7 @@ task.spawn(function()
     print(">>> [THREAD 1] Memuat Script Cheat...")
     task.wait(2)
     pcall(function()
-        script_key="yqAdvpTEGCuTUmfMBIREWQmkhumYsrQb";
+        script_key="sXeTFHPjKppjqxXByGvDVmqaWICymjYs";
 loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/a5a58eeb04e49c77c49e25ad33cf3b36.lua"))()
     end)
 end)
